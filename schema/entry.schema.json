@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tudelft-rp2026.example/schemas/entry-0.0.2.json",
+  "title": "Reproducible Dependency Update Entry",
+  "description": "One reproducible dependency update across ecosystems. Shared contract for RP 2025/2026 Q4 — extending BUMP across ecosystems and update categories.",
+  "type": "object",
+  "required": [
+    "id",
+    "schemaVersion",
+    "ecosystem",
+    "project",
+    "pr",
+    "commits",
+    "update",
+    "category"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Globally unique entry identifier. Convention: <ecosystem>-<breakingCommitShortHash>.",
+      "pattern": "^(cargo|maven|pip|npm)-[a-f0-9]{7,40}$"
+    },
+    "schemaVersion": {
+      "type": "string",
+      "description": "Semver version of this schema.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "ecosystem": {
+      "type": "string",
+      "enum": ["cargo", "maven", "pip", "npm"]
+    },
+    "category": {
+      "type": "string",
+      "description": "Update category. Extends BUMP with non-breaking and fix-after-update; unreproducible is included so drop-outs are preserved for RQ1 drop-out analysis.",
+      "enum": ["breaking", "non-breaking", "fix-after-update", "unreproducible"]
+    },
+    "project": {
+      "type": "object",
+      "required": ["url", "organisation", "name"],
+      "properties": {
+        "url": { "type": "string", "format": "uri" },
+        "organisation": { "type": "string" },
+        "name": { "type": "string" }
+      }
+    },
+    "pr": {
+      "type": "object",
+      "required": ["url", "number", "author", "authorType"],
+      "properties": {
+        "url": { "type": "string", "format": "uri" },
+        "number": { "type": "integer", "minimum": 1 },
+        "author": { "type": "string" },
+        "authorType": { "type": "string", "enum": ["human", "bot"] },
+        "botType": {
+          "type": ["string", "null"],
+          "enum": ["dependabot", "renovate", "snyk", "other", null]
+        },
+        "merged": { "type": "boolean" },
+        "mergedAt": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "commits": {
+      "type": "object",
+      "required": ["preBreaking", "breaking"],
+      "properties": {
+        "preBreaking": { "type": "string", "pattern": "^[a-f0-9]{7,40}$" },
+        "breaking": { "type": "string", "pattern": "^[a-f0-9]{7,40}$" },
+        "preBreakingAuthorType": { "type": ["string", "null"], "enum": ["human", "bot", null] },
+        "breakingAuthorType": { "type": ["string", "null"], "enum": ["human", "bot", null] }
+      }
+    },
+    "update": {
+      "type": "object",
+      "required": ["dependencyName", "previousVersion", "newVersion", "versionUpdateType"],
+      "properties": {
+        "dependencyName": { "type": "string" },
+        "previousVersion": { "type": "string" },
+        "newVersion": { "type": "string" },
+        "versionUpdateType": {
+          "type": "string",
+          "enum": ["major", "minor", "patch", "other"]
+        },
+        "scope": {
+          "type": "string",
+          "description": "Ecosystem-specific scope: runtime, dev, build, test, etc.",
+          "enum": ["runtime", "dev", "build", "test", "other"]
+        }
+      }
+    },
+    "reproduction": {
+      "type": ["object", "null"],
+      "description": "Present only when the entry is reproduced (category != unreproducible).",
+      "required": ["preImage", "breakingImage", "toolchain"],
+      "properties": {
+        "preImage": {
+          "type": "string",
+          "description": "Fully-qualified image reference, e.g. ghcr.io/<org>/breaking-updates-cargo:<hash>-pre"
+        },
+        "breakingImage": {
+          "type": "string",
+          "description": "Fully-qualified image reference, e.g. ghcr.io/<org>/breaking-updates-cargo:<hash>-breaking"
+        },
+        "toolchain": {
+          "type": "string",
+          "description": "Ecosystem-specific toolchain string, e.g. rust-1.75, jdk-11, python-3.11, node-20"
+        },
+        "verifiedOn": {
+          "type": "array",
+          "description": "Platform strings (Docker-style: linux/amd64, darwin/arm64) on which reproducibility was sanity-checked.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "failure": {
+      "type": ["object", "null"],
+      "description": "Present when reproduction confirmed a failing build.",
+      "required": ["topCategory"],
+      "properties": {
+        "topCategory": {
+          "type": "string",
+          "enum": [
+            "COMPILATION_FAILURE",
+            "TEST_FAILURE",
+            "DEPENDENCY_RESOLUTION_FAILURE",
+            "ENVIRONMENT_FAILURE",
+            "OTHER"
+          ]
+        },
+        "subCategory": {
+          "type": ["string", "null"],
+          "description": "Ecosystem-specific subcategory. Each ecosystem owns its own enum (see failure-taxonomy.md)."
+        },
+        "errorCodes": {
+          "type": "array",
+          "description": "Raw ecosystem-specific error codes, e.g. rustc E0277, Maven enforcer rule names.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "ecosystemMetadata": {
+      "type": "object",
+      "description": "Open escape hatch for ecosystem-specific fields that do not warrant top-level status. Consumers may ignore.",
+      "additionalProperties": true
+    },
+    "unreproducibilityReason": {
+      "type": ["string", "null"],
+      "description": "Present when category == unreproducible. Short free-text reason.",
+      "enum": [
+        "pre_breaking_build_failed",
+        "breaking_build_passed",
+        "external_service_required",
+        "toolchain_unavailable",
+        "flaky_tests",
+        "timeout",
+        "network_required",
+        "other",
+        null
+      ]
+    }
+  },
+  "additionalProperties": false
+}

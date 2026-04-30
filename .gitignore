@@ -1,0 +1,5 @@
+.env
+__pycache__/
+*.pyc
+data/cargo/logs/
+data/cargo/dockerfiles/

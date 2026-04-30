@@ -1,0 +1,50 @@
+{
+  "id": "cargo-0abf7148",
+  "schemaVersion": "0.0.2",
+  "ecosystem": "cargo",
+  "category": "breaking",
+  "project": {
+    "url": "https://github.com/example-org/example-crate",
+    "organisation": "example-org",
+    "name": "example-crate"
+  },
+  "pr": {
+    "url": "https://github.com/example-org/example-crate/pull/42",
+    "number": 42,
+    "author": "dependabot[bot]",
+    "authorType": "bot",
+    "botType": "dependabot",
+    "merged": false,
+    "mergedAt": null
+  },
+  "commits": {
+    "preBreaking": "b508900064878eb1ed55a53a724da2fe58f56ad0",
+    "breaking": "0abf7148300f40a1da0538ab060552bca4a2f1d8",
+    "preBreakingAuthorType": "human",
+    "breakingAuthorType": "bot"
+  },
+  "update": {
+    "dependencyName": "serde",
+    "previousVersion": "1.0.150",
+    "newVersion": "1.0.160",
+    "versionUpdateType": "minor",
+    "scope": "runtime"
+  },
+  "reproduction": {
+    "preImage": "ghcr.io/tudelft-rp2026/breaking-updates-cargo:0abf7148-pre",
+    "breakingImage": "ghcr.io/tudelft-rp2026/breaking-updates-cargo:0abf7148-breaking",
+    "toolchain": "rust-1.75",
+    "verifiedOn": ["linux/amd64"]
+  },
+  "failure": {
+    "topCategory": "COMPILATION_FAILURE",
+    "subCategory": "TRAIT_BOUND_NOT_SATISFIED",
+    "errorCodes": ["E0277"]
+  },
+  "ecosystemMetadata": {
+    "edition": "2021",
+    "cargoLockChanged": true,
+    "transitivesChanged": 3
+  },
+  "unreproducibilityReason": null
+}

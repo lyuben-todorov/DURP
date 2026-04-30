@@ -1,0 +1,50 @@
+{
+  "id": "cargo-9ac20c07",
+  "schemaVersion": "0.0.2",
+  "ecosystem": "cargo",
+  "category": "breaking",
+  "project": {
+    "url": "https://github.com/fstubner/netscli",
+    "organisation": "fstubner",
+    "name": "netscli"
+  },
+  "pr": {
+    "url": "https://github.com/fstubner/netscli/pull/22",
+    "number": 22,
+    "author": "dependabot[bot]",
+    "authorType": "bot",
+    "botType": "dependabot",
+    "merged": false,
+    "mergedAt": null
+  },
+  "commits": {
+    "preBreaking": "8b979b8d9439408ff20a767c7100a758bf8c2495",
+    "breaking": "9ac20c0770be0a5d2f88f470dde8874f02be39db",
+    "preBreakingAuthorType": null,
+    "breakingAuthorType": null
+  },
+  "update": {
+    "dependencyName": "ipnetwork",
+    "previousVersion": "0.20",
+    "newVersion": "0.21",
+    "versionUpdateType": "other",
+    "scope": "runtime"
+  },
+  "reproduction": {
+    "preImage": "ghcr.io/tudelft-rp2026/breaking-updates-cargo:9ac20c07-pre",
+    "breakingImage": "ghcr.io/tudelft-rp2026/breaking-updates-cargo:9ac20c07-breaking",
+    "toolchain": "rust-1.92",
+    "verifiedOn": [
+      "linux/amd64"
+    ]
+  },
+  "failure": {
+    "topCategory": "COMPILATION_FAILURE",
+    "subCategory": "TYPE_MISMATCH",
+    "errorCodes": [
+      "E0308"
+    ]
+  },
+  "ecosystemMetadata": {},
+  "unreproducibilityReason": null
+}
