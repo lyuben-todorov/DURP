@@ -50,6 +50,14 @@ sudo install -d -o grafana -g grafana -m 0755 /var/log/grafana-rp
 log "installing grafana.ini"
 sudo install -m 0640 -o root -g grafana "$HERE/grafana.ini" /etc/grafana-rp/grafana.ini
 
+log "ensuring frser-sqlite-datasource plugin is installed for grafana-rp"
+if [ ! -d /var/lib/grafana-rp/plugins/frser-sqlite-datasource ]; then
+  sudo -u grafana /usr/share/grafana/bin/grafana cli \
+    --homepath /usr/share/grafana \
+    --pluginsDir /var/lib/grafana-rp/plugins \
+    plugins install frser-sqlite-datasource
+fi
+
 log "installing provisioning"
 sudo install -m 0644 -o grafana -g grafana \
   "$HERE/provisioning/datasources/datasources.yaml" \
