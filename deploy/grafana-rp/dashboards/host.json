@@ -60,9 +60,49 @@
     },
     {
       "id": 5,
+      "title": "Per-core utilization (heatmap)",
+      "description": "One row per logical CPU core. Column = time. Colour = % non-idle. If 4 cores burn hot while the others are cool, the parallelism is saturating a subset (compile/link phase). If all cores bounce uniformly, N is well-matched to workload.",
+      "type": "heatmap",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "refId": "A",
+        "expr": "(1 - rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100",
+        "legendFormat": "{{cpu}}",
+        "format": "time_series"
+      }],
+      "fieldConfig": {"defaults": {"unit": "percent", "custom": {"scaleDistribution": {"type": "linear"}}}, "overrides": []},
+      "options": {
+        "calculate": false,
+        "color": {"mode": "scheme", "scheme": "Inferno", "min": 0, "max": 100, "steps": 64},
+        "yAxis": {"axisLabel": "core", "reverse": false},
+        "cellGap": 1,
+        "exemplars": {"color": "rgba(255,0,255,0.7)"},
+        "tooltip": {"show": true, "yHistogram": false},
+        "legend": {"show": true},
+        "rowsFrame": {"layout": "auto"}
+      }
+    },
+    {
+      "id": 6,
+      "title": "Per-core utilization (lines)",
+      "description": "Same data as the heatmap, as stacked lines. Useful when you want the exact number for a specific core.",
+      "type": "timeseries",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 26},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{
+        "refId": "A",
+        "expr": "(1 - rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100",
+        "legendFormat": "cpu {{cpu}}"
+      }],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never"}}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "right", "values": ["mean", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    },
+    {
+      "id": 7,
       "title": "Network I/O",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 36},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {"refId": "A", "expr": "rate(node_network_receive_bytes_total{device!~\"lo|docker.*|veth.*|br-.*\"}[1m])",  "legendFormat": "RX {{device}}"},
