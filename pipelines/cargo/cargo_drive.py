@@ -171,6 +171,54 @@ def _mirror_drive_state(db: PipelineDB, run_id: str, rec: DriveRecord) -> None:
 # possible. The driver reads those fields directly and falls back to a
 # single GitHub API call per missing field.
 
+def _fat_image_present_locally(tag: str) -> bool:
+    """True iff `docker image inspect <tag>` returns a local image. Does NOT
+    trigger a registry pull."""
+    r = subprocess.run(
+        ["docker", "image", "inspect", "--format", "{{.Id}}", tag],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    return r.returncode == 0
+
+
+def _preflight_fat_images(
+    candidates: list[dict], max_sde_date: dt.date
+) -> tuple[dict[str, int], list[str], list[str]]:
+    """Walk candidates, compute each one's canonical fat-image tag, and
+    check whether each tag is locally present as a Docker image.
+
+    Returns:
+        needed        — {tag: candidate_count}
+        missing       — tags not present locally
+        build_cmds    — exact `fat_image build` commands for missing tags
+    """
+    needed: dict[str, int] = {}
+    tag_to_build_args: dict[str, tuple[str, str, int]] = {}
+    for cand in candidates:
+        msrv, _detected, commit_date = _resolve_metadata(cand)
+        if commit_date is None or commit_date > max_sde_date:
+            continue
+        debian = _toolchain.debian_release_for(commit_date)
+        bucket = _fat.bucket_for(msrv, commit_date, debian)
+        if bucket is None:
+            continue
+        sde_info = _fat.canonical_sde_for(bucket, max_sde_date=max_sde_date)
+        tag = _fat.tag_for(bucket, sde_info.sde)
+        needed[tag] = needed.get(tag, 0) + 1
+        tag_to_build_args[tag] = (bucket.rust_patch(), bucket.debian, sde_info.sde)
+
+    missing = [tag for tag in needed if not _fat_image_present_locally(tag)]
+    build_cmds = []
+    for tag in missing:
+        rust, debian, sde = tag_to_build_args[tag]
+        build_cmds.append(
+            f"python3 -m pipelines.cargo.fat_image build "
+            f"--rust-version {rust} --debian-release {debian} "
+            f"--source-date-epoch {sde}"
+        )
+    return needed, missing, build_cmds
+
+
 def _resolve_metadata(candidate: dict) -> tuple[str, bool, dt.date | None]:
     """Return (rust_msrv, msrv_detected, commit_date).
 
@@ -440,6 +488,10 @@ def main() -> int:
     p.add_argument("--run-id", default=None,
                    help="Run identifier written to the DB. Defaults to "
                         "'drive-<host>-<ISO timestamp>'. Ignored without --db.")
+    p.add_argument("--skip-preflight", action="store_true",
+                   help="Skip the fat-image availability check at startup. "
+                        "Default is to fail fast if any candidate's canonical "
+                        "fat-image tag is not locally present as a Docker image.")
     args = p.parse_args()
 
     max_sde_date = args.max_sde_date or _fat.default_max_sde_date()
@@ -494,6 +546,32 @@ def main() -> int:
             todo.append(candidate)
             if args.limit and len(todo) >= args.limit:
                 break
+
+    # --- Preflight: every to-be-run candidate's canonical fat-image tag
+    # must already be built locally. Without this, `docker run <tag>`
+    # silently falls back to a registry pull and exits 125 when Docker
+    # Hub denies access — which looks like a cargo pre-build failure in
+    # the state log. Fail fast with a clear message + build commands.
+    if todo and not args.skip_preflight and not args.build_missing_bases:
+        print(f"preflight: checking fat images for {len(todo)} candidate(s)...", file=sys.stderr)
+        needed, missing, build_cmds = _preflight_fat_images(todo, max_sde_date)
+        print(f"  {len(needed)} distinct tags needed, {len(missing)} missing", file=sys.stderr)
+        if missing:
+            print("", file=sys.stderr)
+            print("ERROR: fat images missing from the local Docker daemon:", file=sys.stderr)
+            for tag in missing:
+                print(f"  {tag}  ({needed[tag]} candidate(s) depend on it)", file=sys.stderr)
+            print("", file=sys.stderr)
+            print("Build them first:", file=sys.stderr)
+            for cmd in build_cmds:
+                print(f"  {cmd}", file=sys.stderr)
+            print("", file=sys.stderr)
+            print("Or re-run with --skip-preflight to dispatch anyway "
+                  "(failures will be recorded as pre_build_failed).", file=sys.stderr)
+            if db is not None and run_id is not None:
+                db.finish_run(run_id)
+                db.close()
+            return 2
 
     n_workers = max(1, args.parallel)
     state_lock = threading.Lock()
