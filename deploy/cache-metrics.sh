@@ -34,6 +34,9 @@ else
 fi
 
 tmp=$(mktemp --tmpdir="$(dirname "$OUT")" cargo_cache.XXXXXX.prom)
+# mktemp creates the file mode 0600 by default; node_exporter runs as
+# the prometheus user and needs to read it, so widen before publishing.
+chmod 0644 "$tmp"
 cat > "$tmp" <<EOF
 # HELP cargo_cache_bytes Cargo cache size on disk, by subtree.
 # TYPE cargo_cache_bytes gauge
