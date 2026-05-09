@@ -38,6 +38,7 @@ import dataclasses
 import datetime as dt
 import json
 import platform as host_platform
+import signal
 import socket
 import subprocess
 import sys
@@ -755,7 +756,32 @@ def main() -> int:
     state_lock = threading.Lock()
     db_lock = threading.Lock() if (db is not None and n_workers > 1) else None
 
-    def _worker(candidate: dict) -> DriveRecord:
+    # Graceful-shutdown plumbing. SIGTERM/SIGINT set the event; workers that
+    # haven't yet entered a docker call check it and bail without writing
+    # state. In-flight docker containers get docker-killed so the Python
+    # subprocess.run returns promptly. Interrupted candidates never get a
+    # terminal row in state/DB, so resume re-tries them.
+    shutdown_event = threading.Event()
+
+    def _install_signal_handlers() -> None:
+        def _handler(signum, _frame):
+            if shutdown_event.is_set():
+                return
+            shutdown_event.set()
+            name = {signal.SIGTERM: "SIGTERM", signal.SIGINT: "SIGINT"}.get(signum, str(signum))
+            print(f"\n[shutdown] caught {name} — stopping new work and "
+                  f"killing in-flight containers...", file=sys.stderr)
+            killed = _reproducer.kill_active_containers()
+            print(f"[shutdown] docker-killed {killed} active container(s)", file=sys.stderr)
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            try:
+                signal.signal(sig, _handler)
+            except (ValueError, OSError):
+                pass
+
+    def _worker(candidate: dict) -> DriveRecord | None:
+        if shutdown_event.is_set():
+            return None
         rec = process(
             candidate,
             out_dir=out_dir, logs_dir=logs_dir,
@@ -769,6 +795,10 @@ def main() -> int:
             run_id=run_id,
             db_lock=db_lock,
         )
+        # If shutdown fired mid-reproduction, the docker process was killed
+        # and we got a partial/failed rec. Don't persist — resume re-tries.
+        if shutdown_event.is_set():
+            return None
         with state_lock:
             append_state(state_path, rec)
             if db is not None and run_id is not None:
@@ -777,13 +807,18 @@ def main() -> int:
         return rec
 
     print(f"workers: {n_workers}", file=sys.stderr)
+    _install_signal_handlers()
 
     try:
         if n_workers == 1:
             # Serial path — unchanged semantics for resume ergonomics,
             # log readability, and "no threads at all" debugging.
             for candidate in todo:
+                if shutdown_event.is_set():
+                    break
                 rec = _worker(candidate)
+                if rec is None:
+                    continue  # shutdown
                 counts["processed"] += 1
                 status_counts[rec.status] = status_counts.get(rec.status, 0) + 1
                 print(f"[{rec.candidate_key}] → {rec.status}"
@@ -792,20 +827,29 @@ def main() -> int:
         else:
             with ThreadPoolExecutor(max_workers=n_workers) as pool:
                 futures = [pool.submit(_worker, c) for c in todo]
-                for fut in as_completed(futures):
-                    try:
-                        rec = fut.result()
-                    except Exception as e:
-                        # A worker crashed. Log and move on — JSONL already
-                        # missing the record, so the candidate will be
-                        # re-tried on the next run. Don't kill the pool.
-                        print(f"WORKER ERROR: {e!r}", file=sys.stderr)
-                        continue
-                    counts["processed"] += 1
-                    status_counts[rec.status] = status_counts.get(rec.status, 0) + 1
-                    print(f"[{rec.candidate_key}] → {rec.status}"
-                          + (f"  ({rec.reason})" if rec.reason else ""),
-                          file=sys.stderr)
+                try:
+                    for fut in as_completed(futures):
+                        try:
+                            rec = fut.result()
+                        except Exception as e:
+                            # A worker crashed. Log and move on — JSONL already
+                            # missing the record, so the candidate will be
+                            # re-tried on the next run. Don't kill the pool.
+                            print(f"WORKER ERROR: {e!r}", file=sys.stderr)
+                            continue
+                        if rec is None:
+                            continue  # shutdown-interrupted worker
+                        counts["processed"] += 1
+                        status_counts[rec.status] = status_counts.get(rec.status, 0) + 1
+                        print(f"[{rec.candidate_key}] → {rec.status}"
+                              + (f"  ({rec.reason})" if rec.reason else ""),
+                              file=sys.stderr)
+                finally:
+                    if shutdown_event.is_set():
+                        # Cancel pending futures so the pool exits promptly
+                        # instead of starting more work after signal.
+                        for fut in futures:
+                            fut.cancel()
     finally:
         if db is not None and run_id is not None:
             db.finish_run(run_id)

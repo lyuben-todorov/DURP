@@ -26,9 +26,47 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+
+# Track every active reproducer container so the driver's signal handler
+# can `docker kill` them on SIGTERM. Without this, orphan containers from
+# in-flight reproductions keep running under the Docker daemon after the
+# Python process exits — observed consuming ~28 GB of RAM across three
+# libra/diem builds on 2026-05-09.
+_active_containers: set[str] = set()
+_active_containers_lock = threading.Lock()
+
+
+def _register_container(name: str) -> None:
+    with _active_containers_lock:
+        _active_containers.add(name)
+
+
+def _unregister_container(name: str) -> None:
+    with _active_containers_lock:
+        _active_containers.discard(name)
+
+
+def kill_active_containers(timeout_per_kill_s: int = 10) -> int:
+    """Best-effort `docker kill` on every currently-tracked container.
+    Called from the driver's signal handler. Returns the number of kills
+    attempted. Idempotent — safe to call multiple times.
+    """
+    with _active_containers_lock:
+        names = list(_active_containers)
+    for n in names:
+        try:
+            subprocess.run(
+                ["docker", "kill", n],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=timeout_per_kill_s,
+            )
+        except Exception:
+            pass
+    return len(names)
 
 # Dual-mode import so the module works both as `python -m pipelines.cargo.cargo_reproducer`
 # (package context) and as a standalone script. The driver uses the former.
@@ -197,6 +235,11 @@ def _run_in_docker(
         "docker", "run", "--rm",
         "--name", container_name,
         "--network", "bridge",
+        # Cap per-container memory. With --parallel 4 on a 32G host this
+        # caps aggregate at 32G worst case; realistic steady state is much
+        # lower. Protects against a single pathological linker starving
+        # the host — observed on diem/libra DS1 candidates.
+        "--memory=8g",
     ]
     cache_dir = _cargo_cache_dir()
     if cache_dir:
@@ -212,34 +255,38 @@ def _run_in_docker(
         cmd += ["-v", f"{cache_dir}:/cargo-cache",
                 "-e", "CARGO_HOME=/cargo-cache"]
     cmd += [toolchain_image, "sh", "-c", inner_script]
-    with log_out.open("wb") as f:
-        try:
-            r = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, timeout=timeout_s)
-            return r.returncode
-        except subprocess.TimeoutExpired:
-            # Don't leave the container running — it'll hold the worker.
-            # The kill itself can slow-path under heavy Docker daemon load
-            # (seen with N=8 during bulk container cleanup). Swallow a
-            # kill-timeout and return the reproduction-timeout code anyway
-            # — a zombie container costs less than a lost candidate record.
+    _register_container(container_name)
+    try:
+        with log_out.open("wb") as f:
             try:
-                subprocess.run(
-                    ["docker", "kill", container_name],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    timeout=30,
-                )
-            except (subprocess.TimeoutExpired, OSError):
-                pass
-            # Write a clear marker to the log so the classifier can route
-            # this to TEST_TIMEOUT rather than OTHER.
-            try:
-                f.write(
-                    f"\nerror: reproducer timeout — cargo test exceeded "
-                    f"{timeout_s} seconds and was killed\n".encode("utf-8")
-                )
-            except OSError:
-                pass
-            return 124
+                r = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, timeout=timeout_s)
+                return r.returncode
+            except subprocess.TimeoutExpired:
+                # Don't leave the container running — it'll hold the worker.
+                # The kill itself can slow-path under heavy Docker daemon load
+                # (seen with N=8 during bulk container cleanup). Swallow a
+                # kill-timeout and return the reproduction-timeout code anyway
+                # — a zombie container costs less than a lost candidate record.
+                try:
+                    subprocess.run(
+                        ["docker", "kill", container_name],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        timeout=30,
+                    )
+                except (subprocess.TimeoutExpired, OSError):
+                    pass
+                # Write a clear marker to the log so the classifier can route
+                # this to TEST_TIMEOUT rather than OTHER.
+                try:
+                    f.write(
+                        f"\nerror: reproducer timeout — cargo test exceeded "
+                        f"{timeout_s} seconds and was killed\n".encode("utf-8")
+                    )
+                except OSError:
+                    pass
+                return 124
+    finally:
+        _unregister_container(container_name)
 
 
 def _detect_toolchain_for_candidate(candidate: dict, default: str) -> tuple[str, bool]:
