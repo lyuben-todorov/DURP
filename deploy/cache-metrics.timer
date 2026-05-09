@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodic cargo cache metrics emission
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Unit=cache-metrics.service
+
+[Install]
+WantedBy=timers.target
