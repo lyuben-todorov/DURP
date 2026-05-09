@@ -109,6 +109,40 @@
         {"refId": "B", "expr": "rate(node_network_transmit_bytes_total{device!~\"lo|docker.*|veth.*|br-.*\"}[1m]) * -1", "legendFormat": "TX {{device}}"}
       ],
       "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []}
+    },
+    {
+      "id": 8,
+      "title": "Cargo cache size",
+      "description": "On-disk size of the shared cargo-cache mount. Steep growth = fresh crates being downloaded (cold cache, network-bound). Flat = cache is serving hits, workers are CPU-bound. Split by subtree: git = git-based registry (cargo 1.49-era), registry = modern sparse index.",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 44},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "cargo_cache_bytes{kind=\"git\"}",      "legendFormat": "git"},
+        {"refId": "B", "expr": "cargo_cache_bytes{kind=\"registry\"}", "legendFormat": "registry"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 25, "stacking": {"mode": "normal"}, "showPoints": "never"}}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "values": ["last", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    },
+    {
+      "id": 9,
+      "title": "Crate fetch rate",
+      "description": "Two views of new-crate arrivals. Blue line: bytes/sec derivative of registry cache size (smoothed over 10m). Orange: count of registry files added in the last 5 minutes (noisy, directional). Both drop to zero when the cache is warm — that's the desirable state.",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 44},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "deriv(cargo_cache_bytes{kind=\"registry\"}[10m])", "legendFormat": "bytes/s (smoothed)"},
+        {"refId": "B", "expr": "cargo_crates_fetched_5m",                           "legendFormat": "files added / 5m"}
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "axisPlacement": "auto"}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "bytes/s (smoothed)"}, "properties": [{"id": "unit", "value": "Bps"}]},
+          {"matcher": {"id": "byName", "options": "files added / 5m"},  "properties": [{"id": "unit", "value": "short"}, {"id": "custom.axisPlacement", "value": "right"}]}
+        ]
+      },
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "values": ["last", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}}
     }
   ]
 }
