@@ -4,7 +4,9 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-User=ltodorov
+# Runs as root so it can write to the node_exporter textfile collector
+# dir (/var/lib/prometheus/node-exporter/, owned by root on this host).
+# The script only reads the cargo-cache tree; no privileged operation.
 Environment=CACHE_DIR=/home/ltodorov/rp2026/data/cargo-cache
 Environment=OUT=/var/lib/prometheus/node-exporter/cargo_cache.prom
 ExecStart=/home/ltodorov/rp2026/deploy/cache-metrics.sh
