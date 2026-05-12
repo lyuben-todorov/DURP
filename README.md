@@ -2,12 +2,12 @@
 
 Cross-ecosystem shared infrastructure for the TU Delft Research Project
 *"Mining Reproducible Dependency Updates Across Ecosystems"* (extending
-BUMP). Current state: schema v0.0.4, Fork B reproducibility model
+BUMP). Current state: schema v0.0.5, Fork B reproducibility model
 (environmental equivalence over byte-identical OCI digests).
 
 ## What this POC is
 
-1. A **shared JSON schema** (v0.0.4) for one reproducible dependency-update
+1. A **shared JSON schema** (v0.0.5) for one reproducible dependency-update
    entry — covering `breaking`, `non-breaking`, and `fix-after-update`
    categories.
 2. A **shared failure taxonomy** with an ecosystem-agnostic top level and
@@ -42,7 +42,7 @@ snapshot. Rationale and evidence in
 
 ```
 schema/
-  entry.schema.json         master contract, v0.0.4
+  entry.schema.json         master contract, v0.0.5
   failure-taxonomy.md       shared top-level + Cargo subcategories
   examples/
     cargo-example.json      filled-in example entry
@@ -59,7 +59,7 @@ pipelines/
     cargo_toolchain.py      MSRV detection (file parsers + GitHub API)
     cargo_reproducer.py     pre/post/fix commit verification in Docker
     cargo_classifier.py     cargo log → failure taxonomy
-    cargo_assemble_entry.py candidate + reproduction + classification → v0.0.4 entry
+    cargo_assemble_entry.py candidate + reproduction + classification → v0.0.5 entry
     cargo_regenerate.py     entry-driven rebuild + fingerprint verify
     cargo_drive.py          end-to-end driver (JSONL → entries)
     cargo_plan_fat_images.py batch planner, read-only
@@ -75,7 +75,7 @@ docker/
     index.json              inventory of registered fat images
 data/
   cargo/                    submodule → lyuben-todorov/dep-updates-rp-data
-                            canonical v0.0.4 entry JSONs (Zenodo-bound)
+                            canonical v0.0.5 entry JSONs (Zenodo-bound)
   cargo-logs/               reproducer + driver logs (gitignored)
   cargo-dockerfiles/        transient thin-image Dockerfiles (gitignored)
   pipeline.sqlite           derived query index, rebuildable (gitignored)
@@ -127,7 +127,7 @@ batch drive → verification), see
 
 ## Proof it works
 
-Two real v0.0.4 entries live in the `data/cargo/` submodule
+Two real v0.0.5 entries live in the `data/cargo/` submodule
 ([`lyuben-todorov/dep-updates-rp-data`](https://github.com/lyuben-todorov/dep-updates-rp-data)):
 
 - `cargo-9ac20c07.json` — `fstubner/netscli#22`, Dependabot
@@ -150,12 +150,26 @@ Two real v0.0.4 entries live in the `data/cargo/` submodule
 
 ## Status
 
-**v0.0.4 — category-neutral schema + fat-image internals refactor +
-SQLite index layer.**
-Full DS1 enrichment (2608 candidates) completed; plan proposes 4 fat
-images to cover the dataset. Layer 1 extracted to its own repo
-(`dep-updates-rp-data`, wired in as a submodule at `data/cargo/`).
-`PipelineDB` / `rebuild_index.py` / `verify_index.py` shipped;
-`cargo_drive` has optional `--db` mirror. Next milestones: 500-slice
-dry run, then the full DS1 batch on a VM; deploy script for a fresh
-machine.
+**v0.0.5 — per-architecture environment fingerprints.** The scalar
+`environmentFingerprint` field is replaced by a `environmentFingerprints[]`
+list, each entry tagged by container platform (`linux/amd64`,
+`linux/arm64`). A single entry can now accumulate cross-architecture
+verifications: each arch has its own digest because `packages.txt`
+and `rustc.txt` differ by arch, but the reproduction contract (same
+apt snapshot, same SDE, same rust) is arch-agnostic.
+
+DS1-full run completed 2026-05-12: 2608 candidates processed,
+**1210 reproducible (46.4 %)**, 1395 not_reproducible, 3
+regenerate_mismatch. See `../docs/ds1-full-findings.md` for the full
+breakdown and `schema/failure-taxonomy.md` for the 12-category
+reproduction-failure taxonomy.
+
+Earlier milestones: v0.0.4 introduced the category-neutral schema +
+fat-image internals refactor + SQLite index layer.
+Layer 1 extracted to its own repo (`dep-updates-rp-data`, wired in
+as a submodule at `data/cargo/`). `PipelineDB` / `rebuild_index.py` /
+`verify_index.py` shipped; `cargo_drive` has optional `--db` mirror.
+
+Next milestones: dissect the 12 failure categories one by one for
+recoverable wins, then ingest the live 2024-2025 mine for RQ3's
+recent comparison cohort.

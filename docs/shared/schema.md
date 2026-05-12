@@ -1,4 +1,4 @@
-# Shared Schema — v0.0.4 tour
+# Shared Schema — v0.0.5 tour
 
 Authoritative file:
 [`schema/entry.schema.json`](../../schema/entry.schema.json).
@@ -19,7 +19,7 @@ written in any language as long as their output validates against
 
 ```
 id                      — "<ecosystem>-<shortHash>", globally unique
-schemaVersion           — semver, e.g. "0.0.4"
+schemaVersion           — semver, e.g. "0.0.5"
 ecosystem               — cargo | maven | pip | npm (closed enum)
 category                — breaking | non-breaking | fix-after-update | unreproducible
 project                 — { url, organisation, name }

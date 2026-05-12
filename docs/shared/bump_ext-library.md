@@ -1,6 +1,6 @@
 # `bump_ext` — shared Python library
 
-A thin library that makes the shared schema (v0.0.4) ergonomic from
+A thin library that makes the shared schema (v0.0.5) ergonomic from
 Python. Four source files under `lib/bump_ext/`. Optional for pipelines
 not written in Python — those can validate against
 `schema/entry.schema.json` directly.
@@ -105,7 +105,7 @@ from bump_ext import (
 )
 ```
 
-`SCHEMA_VERSION` (`"0.0.4"`) must be stamped on every entry's
+`SCHEMA_VERSION` (`"0.0.5"`) must be stamped on every entry's
 `schemaVersion` field. New ecosystem pipelines just `import
 SCHEMA_VERSION` — no string literals.
 
