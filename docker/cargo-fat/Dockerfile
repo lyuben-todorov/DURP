@@ -45,8 +45,16 @@ COPY repro-sources-list.sh /usr/local/bin/repro-sources-list.sh
 RUN chmod +x /usr/local/bin/repro-sources-list.sh \
  && /usr/local/bin/repro-sources-list.sh
 
-# Core build tooling
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Core build tooling.
+#
+# --allow-unauthenticated is required for stretch-era snapshots on
+# snapshot.debian.org: apt-secure validates against the keyring
+# shipped in the base image, but snapshot serves security packages
+# signed with rotated keys that the 2019-era keyring doesn't trust.
+# Reproducibility is unaffected because the snapshot URL + SDE still
+# pin exactly which bytes land. Authentication is an orthogonal
+# concern that we trade off for historical-reproducibility coverage.
+RUN apt-get update && apt-get install -y --no-install-recommends --allow-unauthenticated \
     git \
     pkg-config \
     build-essential \
@@ -56,7 +64,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Common native library -dev packages that show up in *-sys dependencies.
 # Grouped thematically; grouping is cosmetic, apt resolves everything in one pass.
-RUN apt-get install -y --no-install-recommends \
+RUN apt-get install -y --no-install-recommends --allow-unauthenticated \
     # crypto / TLS / networking
     libssl-dev \
     libcurl4-openssl-dev \
