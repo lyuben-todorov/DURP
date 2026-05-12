@@ -208,7 +208,8 @@ def _fat_image_present_locally(tag: str) -> bool:
 
 
 def _preflight_fat_images(
-    candidates: list[dict], max_sde_date: dt.date
+    candidates: list[dict], max_sde_date: dt.date,
+    force_fat_image: str | None = None,
 ) -> tuple[dict[str, int], list[str], list[str]]:
     """Walk candidates, compute each one's canonical fat-image tag, and
     check whether each tag is locally present as a Docker image.
@@ -218,6 +219,15 @@ def _preflight_fat_images(
         missing       — tags not present locally
         build_cmds    — exact `fat_image build` commands for missing tags
     """
+    if force_fat_image is not None:
+        # Single-image preflight: every candidate routes to the forced tag.
+        count = sum(
+            1 for c in candidates
+            if _resolve_metadata(c)[2] is not None
+            and _resolve_metadata(c)[2] <= max_sde_date
+        )
+        missing = [] if _fat_image_present_locally(force_fat_image) else [force_fat_image]
+        return ({force_fat_image: count}, missing, [])
     needed: dict[str, int] = {}
     tag_to_build_args: dict[str, tuple[str, str, int]] = {}
     for cand in candidates:
@@ -390,7 +400,8 @@ def process(candidate: dict, *, out_dir: Path, logs_dir: Path,
             reassemble_stale: bool = False,
             db: PipelineDB | None = None,
             run_id: str | None = None,
-            db_lock: threading.Lock | None = None) -> DriveRecord:
+            db_lock: threading.Lock | None = None,
+            force_fat_image: str | None = None) -> DriveRecord:
     key = _key(candidate)
     now = dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
     rec = DriveRecord(candidate_key=key, status="", timestamp=now,
@@ -438,18 +449,25 @@ def process(candidate: dict, *, out_dir: Path, logs_dir: Path,
 
     print(f"[{key}]   MSRV={rust_msrv}  commit_date={commit_date}", file=sys.stderr)
 
-    # --- 1c: resolve fat image via canonical bucketing ---
-    debian = _toolchain.debian_release_for(commit_date)
-    bucket = _fat.bucket_for(rust_msrv, commit_date, debian)
-    if bucket is None:
-        rec.status = Status.FAT_IMAGE_MISSING
-        rec.reason = (f"no supported fat image for (msrv={rust_msrv!r}, "
-                      f"debian={debian}) — see fat_image.MILESTONE_DEBIAN_SUPPORTED")
-        return rec
-    sde_info = _fat.canonical_sde_for(bucket, max_sde_date=max_sde_date)
-    tag = _fat.tag_for(bucket, sde_info.sde)
-
+    # --- 1c: resolve fat image. Normal path uses the bucketer; the override
+    # (--force-fat-image) bypasses it for targeted retries.
     existing = {r.tag: r for r in _fat.load_index()}
+    if force_fat_image is not None:
+        tag = force_fat_image
+        if tag not in existing:
+            rec.status = Status.FAT_IMAGE_MISSING
+            rec.reason = f"--force-fat-image tag not in index: {tag}"
+            return rec
+    else:
+        debian = _toolchain.debian_release_for(commit_date)
+        bucket = _fat.bucket_for(rust_msrv, commit_date, debian)
+        if bucket is None:
+            rec.status = Status.FAT_IMAGE_MISSING
+            rec.reason = (f"no supported fat image for (msrv={rust_msrv!r}, "
+                          f"debian={debian}) — see fat_image.MILESTONE_DEBIAN_SUPPORTED")
+            return rec
+        sde_info = _fat.canonical_sde_for(bucket, max_sde_date=max_sde_date)
+        tag = _fat.tag_for(bucket, sde_info.sde)
     if tag in existing:
         resolve_match = existing[tag]
         print(f"[{key}] resolved fat image: {tag}", file=sys.stderr)
@@ -665,6 +683,14 @@ def main() -> int:
                         "candidate as entry_bucket_stale — an operator signal "
                         "that bucketing logic or max_sde_date changed since "
                         "the entry was written.")
+    p.add_argument("--force-fat-image", default=None, metavar="TAG",
+                   help="Override the bucketer and use TAG for every candidate. "
+                        "The tag must already be registered in the index and "
+                        "present in the Docker daemon's image store. Intended "
+                        "for targeted re-runs against a hypothesised better "
+                        "fat image (e.g. routing the OPENSSL_MISMATCH cohort "
+                        "to a stretch-era image regardless of commit date). "
+                        "Bypasses bucket_for / canonical_sde_for entirely.")
     p.add_argument("--cargo-cache", default=None,
                    help="Host directory bind-mounted into every reproducer "
                         "container at /usr/local/cargo. First candidate pulls "
@@ -755,7 +781,8 @@ def main() -> int:
     # the state log. Fail fast with a clear message + build commands.
     if todo and not args.skip_preflight and not args.build_missing_bases:
         print(f"preflight: checking fat images for {len(todo)} candidate(s)...", file=sys.stderr)
-        needed, missing, build_cmds = _preflight_fat_images(todo, max_sde_date)
+        needed, missing, build_cmds = _preflight_fat_images(
+            todo, max_sde_date, force_fat_image=args.force_fat_image)
         print(f"  {len(needed)} distinct tags needed, {len(missing)} missing", file=sys.stderr)
         if missing:
             print("", file=sys.stderr)
@@ -816,6 +843,7 @@ def main() -> int:
             db=db,
             run_id=run_id,
             db_lock=db_lock,
+            force_fat_image=args.force_fat_image,
         )
         # If shutdown fired mid-reproduction, the docker process was killed
         # and we got a partial/failed rec. Don't persist — resume re-tries.
