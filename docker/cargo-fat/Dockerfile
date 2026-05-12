@@ -88,11 +88,19 @@ RUN apt-get install -y --no-install-recommends --allow-unauthenticated \
     libasound2-dev \
     libudev-dev \
     libdbus-1-dev \
-    # vcs
-    libgit2-dev \
     # misc
     libexpat1-dev \
     libxml2-dev
+
+# libgit2-dev on stretch transitively depends on libcurl4-gnutls-dev which
+# conflicts with the libcurl4-openssl-dev we install above. buster+ doesn't
+# have this conflict. Install libgit2-dev separately on non-stretch so the
+# stretch builds stay clean; git2-rs crate users on stretch fall back to
+# the bundled libgit2 (git2 has a vendored feature flag).
+ARG DEBIAN_RELEASE
+RUN if [ "${DEBIAN_RELEASE}" != "stretch" ]; then \
+        apt-get install -y --no-install-recommends --allow-unauthenticated libgit2-dev; \
+    fi
 
 # GUI stack (GTK3 + WebKit + Tauri deps) — needed for Tauri-based projects
 # such as the netscli test case. Big (~500 MB), the main cost of the fat
