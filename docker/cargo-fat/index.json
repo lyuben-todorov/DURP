@@ -8,15 +8,15 @@
       "sourceDateEpoch": 1776211200,
       "aptSnapshot": "20260415T000000Z",
       "debianRelease": "bookworm",
-      "firstSeenAt": "2026-05-03",
-      "notes": "Seed image. Expected to cover modern (2023+) Rust entries with MSRV up to 1.92 on bookworm-era native deps.",
       "environmentFingerprints": [
         {
           "platform": "linux/arm64",
           "digest": "sha256:238aeacc2ead9b9e9d604013145265add4842ebe3455429764c35aed5aba427d",
           "packageCount": 717
         }
-      ]
+      ],
+      "firstSeenAt": "2026-05-03",
+      "notes": "Seed image. Expected to cover modern (2023+) Rust entries with MSRV up to 1.92 on bookworm-era native deps."
     },
     {
       "tag": "rp2026/cargo-fat:1.92.0-bookworm-20260427",
@@ -24,15 +24,15 @@
       "sourceDateEpoch": 1777248000,
       "aptSnapshot": "20260427T000000Z",
       "debianRelease": "bookworm",
-      "firstSeenAt": "2026-05-03",
-      "notes": "built for fstubner/netscli#22",
       "environmentFingerprints": [
         {
           "platform": "linux/arm64",
           "digest": "sha256:b95070ba06fb7f6a66a6ad03b5fb6addd8622356b606f999fe5e841c7f325c43",
           "packageCount": 717
         }
-      ]
+      ],
+      "firstSeenAt": "2026-05-03",
+      "notes": "built for fstubner/netscli#22"
     },
     {
       "tag": "rp2026/cargo-fat:1.56.0-buster-20211022",
@@ -40,14 +40,14 @@
       "sourceDateEpoch": 1634860800,
       "aptSnapshot": "20211022T000000Z",
       "debianRelease": "buster",
-      "firstSeenAt": "2026-05-03",
       "environmentFingerprints": [
         {
           "platform": "linux/arm64",
           "digest": "sha256:41bee9de457559640639b1c20c02ee818cb83f905a28fdd7d72d6f5b4cc531d2",
           "packageCount": 456
         }
-      ]
+      ],
+      "firstSeenAt": "2026-05-03"
     },
     {
       "tag": "rp2026/cargo-fat:1.56.0-bullseye-20220804",
@@ -55,14 +55,14 @@
       "sourceDateEpoch": 1659571200,
       "aptSnapshot": "20220804T000000Z",
       "debianRelease": "bullseye",
-      "firstSeenAt": "2026-05-03",
       "environmentFingerprints": [
         {
           "platform": "linux/arm64",
           "digest": "sha256:2c49acb129ec5206abe6cf5aefc04c4a7d8296a9fc7e991c624d3055b3a94174",
           "packageCount": 456
         }
-      ]
+      ],
+      "firstSeenAt": "2026-05-03"
     },
     {
       "tag": "rp2026/cargo-fat:1.49.0-buster-20210209",
@@ -70,14 +70,14 @@
       "sourceDateEpoch": 1612828800,
       "aptSnapshot": "20210209T000000Z",
       "debianRelease": "buster",
-      "firstSeenAt": "2026-05-07",
       "environmentFingerprints": [
         {
           "platform": "linux/arm64",
           "digest": "sha256:5d8e3568e7a630e2371a3654408c78a8161c785330b5006dd594d994a3e2ff38",
           "packageCount": 456
         }
-      ]
+      ],
+      "firstSeenAt": "2026-05-07"
     },
     {
       "tag": "rp2026/cargo-fat:1.56.0-buster-20211231",
@@ -85,14 +85,14 @@
       "sourceDateEpoch": 1640908800,
       "aptSnapshot": "20211231T000000Z",
       "debianRelease": "buster",
-      "firstSeenAt": "2026-05-07",
       "environmentFingerprints": [
         {
           "platform": "linux/arm64",
           "digest": "sha256:6c31616c4d6dca483af7ca2f458d9ff5a7b39b3d61cfc3abd46202aa8e0fe6c3",
           "packageCount": 456
         }
-      ]
+      ],
+      "firstSeenAt": "2026-05-07"
     },
     {
       "tag": "rp2026/cargo-fat:1.49.0-buster-20211231",
@@ -100,14 +100,45 @@
       "sourceDateEpoch": 1640908800,
       "aptSnapshot": "20211231T000000Z",
       "debianRelease": "buster",
-      "firstSeenAt": "2026-05-07",
       "environmentFingerprints": [
         {
           "platform": "linux/arm64",
           "digest": "sha256:eb5e41de7cb076301a9dcaa78fb2885604d3959ad5f58cef32cb55792e34baef",
           "packageCount": 456
         }
-      ]
+      ],
+      "firstSeenAt": "2026-05-07"
+    },
+    {
+      "tag": "rp2026/cargo-fat:1.56.0-bullseye-20211231",
+      "rustVersion": "1.56.0",
+      "sourceDateEpoch": 1640908800,
+      "aptSnapshot": "20211231T000000Z",
+      "debianRelease": "bullseye",
+      "environmentFingerprints": [
+        {
+          "platform": "linux/amd64",
+          "digest": "sha256:11270aa6b58d238280309b178811404ba6bab2f064843027db585dee90714c96",
+          "packageCount": 460
+        }
+      ],
+      "firstSeenAt": "2026-05-08"
+    },
+    {
+      "tag": "rp2026/cargo-fat:1.39.0-stretch-20191231",
+      "rustVersion": "1.39.0",
+      "sourceDateEpoch": 1577750400,
+      "aptSnapshot": "20191231T000000Z",
+      "debianRelease": "stretch",
+      "environmentFingerprints": [
+        {
+          "platform": "linux/amd64",
+          "digest": "sha256:eb56645c32d9e55672b6373d47d2e4e3d47c143a9f37c36c495e0450b62ec9b4",
+          "packageCount": 448
+        }
+      ],
+      "firstSeenAt": "2026-05-12",
+      "notes": "stretch-era image for 2018-2019 Rust code; added to recover the 378 OPENSSL_MISMATCH failures"
     }
   ]
 }
