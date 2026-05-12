@@ -188,6 +188,11 @@ def msrv_at_commit(repo: str, sha: str) -> str | None:
 # have one already. The commit's era → Debian era; good enough for a
 # default, and the operator can override in the CLI.
 _DEBIAN_CUTOVERS = [
+    # Commits before buster's release date map to stretch. Pairs with the
+    # 1.39 milestone to give 2018-2019 Rust code an era-appropriate
+    # libssl-dev, avoiding the OpenSSL 0.9.x + 1.1.1 collision that
+    # dominates DS1's 378 OPENSSL_MISMATCH failures.
+    (dt.date(2019, 7, 6),  "stretch"),
     (dt.date(2021, 8, 14), "buster"),
     (dt.date(2023, 6, 10), "bullseye"),
     (dt.date(2025, 8, 9),  "bookworm"),

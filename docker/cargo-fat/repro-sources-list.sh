@@ -21,11 +21,16 @@
 # This script is expected to be executed inside Dockerfile.
 #
 # The following distributions are supported:
+# - debian:9     (/etc/apt/sources.list, security via debian-security/<codename>/updates)
+# - debian:10    (/etc/apt/sources.list, security via debian-security/<codename>/updates)
 # - debian:11    (/etc/apt/sources.list)
 # - debian:12    (/etc/apt/sources.list.d/debian.sources)
 # - ubuntu:22.04 (/etc/apt/sources.list)
 # - ubuntu:24.04 (/etc/apt/sources.listd/ubuntu.sources)
 # - archlinux    (/etc/pacman.d/mirrorlist)
+#
+# NB the script already had working stretch/jessie handling via the case
+# statement below; the comment was out of date. Only the header is patched.
 #
 # For the further information, see https://github.com/reproducible-containers/repro-sources-list.sh
 # -----------------------------------------------------------------------------

@@ -54,13 +54,14 @@ SNAPSHOT_RE = re.compile(r"^(\d{8})T\d{6}Z$")
 # Rust milestones we pick fat images at. MSRVs get rounded *up* to the
 # smallest milestone ≥ MSRV — this is what makes (1.49, 2020) and (1.56, 2020)
 # buckets share an image.
-MILESTONES = ["1.49", "1.56", "1.65", "1.75", "1.85", "1.92"]
+MILESTONES = ["1.39", "1.49", "1.56", "1.65", "1.75", "1.85", "1.92"]
 
 # Upstream release dates, authoritative from rust-lang/rust/RELEASES.md (verified
 # 2026-05-05). When MILESTONES grows, re-fetch:
 #   curl -sfL https://raw.githubusercontent.com/rust-lang/rust/master/RELEASES.md \
 #     | grep -E "^Version 1\.(...)\\.0"
 MILESTONE_RELEASE_DATES: dict[str, dt.date] = {
+    "1.39": dt.date(2019, 11,  7),
     "1.49": dt.date(2020, 12, 31),
     "1.56": dt.date(2021, 10, 21),
     "1.65": dt.date(2022, 11,  3),
@@ -77,6 +78,7 @@ MILESTONE_RELEASE_DATES: dict[str, dt.date] = {
 # Why hardcoded: avoids a network call at bucketize time, and the grid
 # changes only when Docker Hub adds a track (rarely).
 MILESTONE_DEBIAN_SUPPORTED: set[tuple[str, str]] = {
+    ("1.39", "stretch"), ("1.39", "buster"),
     ("1.49", "buster"),
     ("1.56", "buster"), ("1.56", "bullseye"),
     ("1.65", "buster"), ("1.65", "bullseye"),

@@ -63,6 +63,27 @@ CLASSIFIER_VERSION = "cargo_classifier@v0.1"
 
 
 MSRV_FLOOR = "1.56"  # edition-2021; any real Cargo project needs at least this.
+# Date-aware MSRV floor for projects that declare no MSRV. A 2018-2019 project
+# falling back to 1.56 is sent 11+ minor versions ahead of its native toolchain,
+# triggering borrow-check tightening and stdlib regressions the author never saw.
+# Route pre-2020 undeclared-MSRV projects to 1.39 (the async/await cliff) instead.
+MSRV_FLOOR_CUTOVERS = [
+    (dt.date(2020, 1, 1), "1.39"),
+    (dt.date(9999, 12, 31), "1.56"),
+]
+
+
+def _msrv_floor_for(commit_date: dt.date | None) -> str:
+    """Pick the MSRV floor for a project with no declared MSRV, based on the
+    post-commit date. Newer commits get a higher floor; pre-2020 commits get
+    an era-appropriate floor (1.39 + stretch) rather than the 1.56 default.
+    """
+    if commit_date is None:
+        return MSRV_FLOOR
+    for cutover, floor in MSRV_FLOOR_CUTOVERS:
+        if commit_date < cutover:
+            return floor
+    return MSRV_FLOOR
 
 
 # ---- per-candidate status ---------------------------------------------------
@@ -335,17 +356,11 @@ def _sde_to_yyyymmdd(sde: int | None) -> str:
 def _resolve_metadata(candidate: dict) -> tuple[str, bool, dt.date | None]:
     """Return (rust_msrv, msrv_detected, commit_date).
 
-    `msrv_detected` is False when we fell back to MSRV_FLOOR because the
-    project declared nothing at the post-commit. True means rust-toolchain /
-    Cargo.toml's rust-version supplied the value.
+    `msrv_detected` is False when we fell back to a date-aware MSRV floor
+    because the project declared nothing at the post-commit. True means
+    rust-toolchain / Cargo.toml's rust-version supplied the value.
     """
-    msrv = candidate.get("rust_msrv")
-    if msrv is None:
-        msrv = _toolchain.msrv_at_commit(candidate["repo"], candidate["post_commit"])
-    detected = msrv is not None
-    if msrv is None:
-        msrv = MSRV_FLOOR
-
+    # Resolve commit_date first so the MSRV fallback can be date-aware.
     date_str = candidate.get("post_commit_date")
     if date_str is None:
         date_str = _toolchain.commit_date_at(candidate["repo"], candidate["post_commit"])
@@ -355,6 +370,13 @@ def _resolve_metadata(candidate: dict) -> tuple[str, bool, dt.date | None]:
             commit_date = dt.date.fromisoformat(date_str)
         except ValueError:
             commit_date = None
+
+    msrv = candidate.get("rust_msrv")
+    if msrv is None:
+        msrv = _toolchain.msrv_at_commit(candidate["repo"], candidate["post_commit"])
+    detected = msrv is not None
+    if msrv is None:
+        msrv = _msrv_floor_for(commit_date)
 
     return msrv, detected, commit_date
 
