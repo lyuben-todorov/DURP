@@ -54,13 +54,15 @@ SNAPSHOT_RE = re.compile(r"^(\d{8})T\d{6}Z$")
 # Rust milestones we pick fat images at. MSRVs get rounded *up* to the
 # smallest milestone ≥ MSRV — this is what makes (1.49, 2020) and (1.56, 2020)
 # buckets share an image.
-MILESTONES = ["1.39", "1.49", "1.56", "1.65", "1.75", "1.85", "1.92"]
+MILESTONES = ["1.30", "1.35", "1.39", "1.49", "1.56", "1.65", "1.75", "1.85", "1.92"]
 
 # Upstream release dates, authoritative from rust-lang/rust/RELEASES.md (verified
 # 2026-05-05). When MILESTONES grows, re-fetch:
 #   curl -sfL https://raw.githubusercontent.com/rust-lang/rust/master/RELEASES.md \
 #     | grep -E "^Version 1\.(...)\\.0"
 MILESTONE_RELEASE_DATES: dict[str, dt.date] = {
+    "1.30": dt.date(2018, 10, 25),
+    "1.35": dt.date(2019,  5, 23),
     "1.39": dt.date(2019, 11,  7),
     "1.49": dt.date(2020, 12, 31),
     "1.56": dt.date(2021, 10, 21),
@@ -78,6 +80,15 @@ MILESTONE_RELEASE_DATES: dict[str, dt.date] = {
 # Why hardcoded: avoids a network call at bucketize time, and the grid
 # changes only when Docker Hub adds a track (rarely).
 MILESTONE_DEBIAN_SUPPORTED: set[tuple[str, str]] = {
+    # 1.30 anchors edition-2018 boundary (rustc 1.31 was the first stable
+    # edition-2018 compiler; 1.30 is the last pre-edition compiler that
+    # still accepts pre-edition module-resolution syntax).
+    ("1.30", "stretch"),
+    # 1.35 is the last pre-NLL stable rustc (full NLL stabilised in 1.36).
+    # Code from 2018-pre-1.36 era that relies on lexical borrows compiles
+    # cleanly here; the NLL-cluster of E0713/E0506/E0621/E0503/E0502
+    # bitrots upward.
+    ("1.35", "stretch"),
     ("1.39", "stretch"), ("1.39", "buster"),
     ("1.49", "buster"),
     ("1.56", "buster"), ("1.56", "bullseye"),
@@ -428,12 +439,22 @@ def save_index(records: Iterable[FatImageRecord], path: Path = INDEX_PATH) -> No
         f.write("\n")
 
 
-def register(record: FatImageRecord, path: Path = INDEX_PATH) -> None:
-    """Append a new record, rejecting tag collisions."""
+def register(record: FatImageRecord, path: Path = INDEX_PATH,
+             *, update: bool = False) -> None:
+    """Append a new record, rejecting tag collisions unless update=True.
+
+    With update=True, replaces an existing record at the same tag in
+    place. Used when an image is rebuilt under its existing name (the
+    fingerprint changes; the index needs to track the new fingerprint).
+    """
     records = load_index(path)
-    for r in records:
+    for i, r in enumerate(records):
         if r.tag == record.tag:
-            raise IndexError(f"tag already registered: {record.tag}")
+            if not update:
+                raise IndexError(f"tag already registered: {record.tag}")
+            records[i] = record
+            save_index(records, path)
+            return
     records.append(record)
     save_index(records, path)
 
@@ -693,11 +714,11 @@ def _cli_register(args: argparse.Namespace) -> int:
         return 2
     record = dataclasses.replace(record, firstSeenAt=dt.date.today().isoformat(), notes=args.notes)
     try:
-        register(record)
+        register(record, update=args.update)
     except IndexError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 2
-    print(f"registered {record.tag}")
+    print(f"{'updated' if args.update else 'registered'} {record.tag}")
     return 0
 
 
@@ -728,6 +749,10 @@ def main() -> int:
     prg = sub.add_parser("register", help="Introspect an already-built image and register it.")
     prg.add_argument("--tag", required=True, help="Image tag to register.")
     prg.add_argument("--notes", default=None, help="Human notes.")
+    prg.add_argument("--update", action="store_true",
+                     help="Replace an existing index entry under the same tag "
+                          "instead of failing with 'tag already registered'. "
+                          "Used when rebuilding an image under its existing name.")
 
     args = p.parse_args()
     cmds = {"list": _cli_list, "resolve": _cli_resolve, "build": _cli_build, "register": _cli_register}
