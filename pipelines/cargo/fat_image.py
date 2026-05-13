@@ -193,19 +193,38 @@ def round_up_to_milestone(msrv: str) -> str | None:
 def latest_milestone_before(commit_date: dt.date) -> str:
     """Largest milestone whose release date is ≤ commit_date.
 
-    Used by `bucket_for` as the fallback when a candidate has no
-    declared MSRV — picks the rust the PR author was plausibly
-    targeting rather than a language-edition floor that understates
-    what the code actually needs.
-
-    For commit dates before any milestone's release (pre-2020 PRs),
-    returns the smallest milestone in MILESTONES. Those rows will
-    carry pre_rust_base anyway once canonical_sde_for runs.
+    Used as one input to `era_milestone_for_commit` — the era-floor
+    walks BACK from the commit. Kept exposed for callers that need
+    the strict "what was current at the commit" answer (e.g. dashboards).
     """
     below = [m for m in MILESTONES if MILESTONE_RELEASE_DATES[m] <= commit_date]
     if not below:
         return MILESTONES[0]
     return max(below, key=parse_semver)
+
+
+def era_milestone_for_commit(commit_date: dt.date) -> str:
+    """Pick the milestone that best matches the rustc the PR author was
+    actually using around `commit_date`. Rounds **up** to the next
+    milestone we ship rather than down: between two milestones, the
+    actual contemporary rustc was minor versions newer than the lower
+    milestone, and modern transitive deps in the project's lockfile
+    will trip on the lower one.
+
+    Concretely: rustc 1.45 was current on 2020-08-25 — we don't ship
+    1.45, so we pick 1.49 (the next we ship), not 1.39 (the previous).
+    A 2020-era project's lockfile may pull in `remove_dir_all 0.5.3`
+    which uses `cfg(doctest)` (stabilised 1.40), and 1.39 rejects it.
+    Picking 1.49 means we slightly over-shoot rust on the OS-era axis
+    but recover the candidate; under-shooting kills it.
+
+    For commit dates after the largest milestone's release, returns the
+    largest milestone (no upward bump available).
+    """
+    above = [m for m in MILESTONES if MILESTONE_RELEASE_DATES[m] >= commit_date]
+    if above:
+        return min(above, key=parse_semver)
+    return MILESTONES[-1]
 
 
 def _reroute_to_supported(milestone: str, debian: str) -> str | None:
@@ -236,8 +255,17 @@ def bucket_for(rust_msrv: str | None, commit_date: dt.date, debian: str) -> Buck
     image can serve this (milestone, debian) pair.
 
     Steps:
-      1. Pick the initial milestone: round_up_to_milestone(rust_msrv)
-         when MSRV is known, else latest_milestone_before(commit_date).
+      1. Pick the initial milestone:
+           era      = latest_milestone_before(commit_date)
+           floor    = round_up_to_milestone(rust_msrv) if MSRV declared
+           milestone = max(floor, era)
+         The era picks the rustc the PR author was plausibly targeting.
+         The MSRV floor is a *minimum*: a project declaring MSRV=1.31 in
+         2020 was still being compiled by its author against rustc ≥1.45
+         and pulls in transitive deps (e.g. `remove_dir_all 0.5.3` using
+         `cfg(doctest)` stabilised in 1.40) that fail on older rustc.
+         Routing strictly to the MSRV milestone regresses entries that
+         ds1-full-crack reproduced cleanly on the era milestone.
       2. If (milestone, debian) isn't a published rust:<patch>-<debian>
          tag on Docker Hub, reroute upward to the smallest supported
          milestone on that debian. This keeps the OS era intact and
@@ -245,10 +273,17 @@ def bucket_for(rust_msrv: str | None, commit_date: dt.date, debian: str) -> Buck
       3. Return None if rerouting finds no viable milestone — that
          debian never hosted a supported rustc on this track.
     """
+    era_milestone = era_milestone_for_commit(commit_date)
     if rust_msrv is None:
-        milestone: str | None = latest_milestone_before(commit_date)
+        milestone: str | None = era_milestone
     else:
-        milestone = round_up_to_milestone(rust_msrv)
+        floor = round_up_to_milestone(rust_msrv)
+        # max() under semver-tuple order, falling back to era when floor
+        # is None (msrv unparseable or above largest milestone).
+        if floor is None:
+            milestone = era_milestone
+        else:
+            milestone = max(floor, era_milestone, key=parse_semver)
     if milestone is None:
         return None
     milestone = _reroute_to_supported(milestone, debian)
