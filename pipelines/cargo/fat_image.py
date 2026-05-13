@@ -549,9 +549,17 @@ def introspect_fat_image(tag: str) -> FatImageRecord:
 
         os_release = (out / "os-release").read_text()
         m = re.search(r'^VERSION_CODENAME=(\w+)', os_release, re.MULTILINE)
-        if not m:
-            raise IndexError(f"could not parse VERSION_CODENAME from os-release")
-        debian_release = m.group(1)
+        if m:
+            debian_release = m.group(1)
+        else:
+            # Older debian releases (rust:1.30/1.35-stretch base images) ship
+            # /etc/os-release without VERSION_CODENAME — only VERSION="9
+            # (stretch)" is present. Fall back to parsing the codename
+            # from the parenthesised tail of VERSION.
+            m = re.search(r'^VERSION="\d+\s*\(([a-z]+)\)"', os_release, re.MULTILINE)
+            if not m:
+                raise IndexError("could not parse VERSION_CODENAME from os-release")
+            debian_release = m.group(1)
 
         rustc_txt = (out / "rustc.txt").read_text()
         m = re.search(r"^rustc (\d+\.\d+\.\d+)", rustc_txt)
