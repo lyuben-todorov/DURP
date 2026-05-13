@@ -950,6 +950,17 @@ def main() -> int:
                         "candidates reuse the cache, cutting network ~3-5×. "
                         "Pass empty string to disable. Default: data/cargo-cache/ "
                         "next to the state file.")
+    p.add_argument("--shuffle", action="store_true",
+                   help="Shuffle the to-do list before dispatch. Spreads "
+                        "expensive fork-clusters (libra/diem/solana family, "
+                        "or repos with N adjacent PRs that share heavy deps) "
+                        "across workers, stopping a single 30min linker from "
+                        "blocking N workers' progress while their similar "
+                        "candidates queue behind it. Resume-safe — shuffle "
+                        "happens after the skip-list filter, so already-done "
+                        "candidates are never re-shuffled in.")
+    p.add_argument("--shuffle-seed", type=int, default=None,
+                   help="Seed for --shuffle. Default: nondeterministic.")
     p.add_argument("--attempts", type=int, default=1,
                    help="Repeat each candidate's pre and post cargo-test "
                         "invocations N times. With N>1, mixed pass/fail "
@@ -1065,6 +1076,20 @@ def main() -> int:
             todo.append(candidate)
             if args.limit and len(todo) >= args.limit:
                 break
+
+    # Shuffling spreads expensive fork-clusters (libra/diem/solana, plus
+    # repos with N adjacent PRs that share a workspace) across the workers
+    # instead of clumping them at the alphabetical-order JSONL slice. Big
+    # impact on wall-clock when --parallel > 1: stops a single 30min
+    # libra build from blocking 5 workers' progress while their own
+    # libra-family candidates queue behind it.
+    if args.shuffle:
+        import random
+        rng = random.Random(args.shuffle_seed) if args.shuffle_seed else random.Random()
+        rng.shuffle(todo)
+        print(f"shuffled {len(todo)} candidates "
+              f"(seed={args.shuffle_seed if args.shuffle_seed else 'random'})",
+              file=sys.stderr)
 
     # --- Preflight: every to-be-run candidate's canonical fat-image tag
     # must already be built locally. Without this, `docker run <tag>`
