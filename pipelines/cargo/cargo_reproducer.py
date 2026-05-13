@@ -104,16 +104,21 @@ DEB_THIN_DEPS = "apt-get update >/dev/null && apt-get install -y --no-install-re
 # costs nothing and unbreaks the old-toolchain candidates.
 BUILD_CMD = "cargo test --locked --message-format=json --no-fail-fast"
 # Relaxed variant for the LOCK_FILE_STALE retry path: regenerate Cargo.lock
-# from scratch, then build with --frozen (don't update lockfile during build,
-# but accept whatever generate-lockfile produced). This recovers the
+# from scratch, then build without --locked or --frozen (so cargo can
+# download the crates the regenerated lockfile points to). Recovers the
 # Dependabot-bumped-Cargo.toml-without-relock pattern documented in
 # docs/ds1-reconcile.md (overdrop-sebool, rust-central-station fork-clusters).
 # Successes from this path get a distinct status (`ok_after_relock`) so the
 # headline reproducibility number stays honest about which reproductions
 # required lockfile regeneration.
+#
+# An earlier version chained `cargo test --frozen`; --frozen forbids both
+# lock changes AND network, so it failed at "attempting to make an HTTP
+# request, but --frozen was specified" when fetching crates the new lock
+# pointed at. Plain `cargo test` is honest about the relaxation.
 BUILD_CMD_RELAXED = (
     "cargo generate-lockfile && "
-    "cargo test --frozen --message-format=json --no-fail-fast"
+    "cargo test --message-format=json --no-fail-fast"
 )
 
 # A tiny image used only for `git clone` + file-read during toolchain detection.
