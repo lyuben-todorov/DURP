@@ -239,6 +239,22 @@
       ],
       "firstSeenAt": "2026-05-13",
       "notes": "round-2: NLL+edition-2018 bitrot recovery. Last pre-NLL stable rustc; full NLL stabilised in 1.36."
+    },
+    {
+      "tag": "rp2026/cargo-fat:1.30.0-stretch-20181231",
+      "rustVersion": "1.30.0",
+      "sourceDateEpoch": 1546214400,
+      "aptSnapshot": "20181231T000000Z",
+      "debianRelease": "stretch",
+      "environmentFingerprints": [
+        {
+          "platform": "linux/amd64",
+          "digest": "sha256:d44dfb9c0a06981aeb50611bccf922fb63ad26b1d54bd547bb2ba8c385ca09c8",
+          "packageCount": 575
+        }
+      ],
+      "firstSeenAt": "2026-05-13",
+      "notes": "round-2 NLL+edition-2018 cluster: 1.30 anchors edition-2018 boundary."
     }
   ]
 }
