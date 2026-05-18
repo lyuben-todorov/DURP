@@ -788,7 +788,7 @@
     },
     {
       "id": 410,
-      "title": "RQ4 — RUSTC_BITROT top E-codes",
+      "title": "RQ4 — RUSTC_BITROT top E-codes (per candidate · dominant code)",
       "type": "barchart",
       "gridPos": {
         "h": 9,
@@ -815,14 +815,42 @@
       }
     },
     {
-      "id": 411,
-      "title": "RQ4 — Pipeline-fixable vs corpus-property",
-      "type": "piechart",
+      "id": 412,
+      "title": "RQ4 — RUSTC_BITROT top E-codes (per occurrence · full distribution)",
+      "type": "barchart",
       "gridPos": {
         "h": 9,
         "w": 12,
         "x": 12,
         "y": 90
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "pipeline-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "table",
+          "rawQueryText": "WITH ranked AS (SELECT run_id, candidate_key, status, ROW_NUMBER() OVER (PARTITION BY candidate_key ORDER BY CASE status WHEN 'ok' THEN 0 WHEN 'ok_after_relock' THEN 1 WHEN 'flaky' THEN 2 WHEN 'not_reproducible' THEN 3 ELSE 4 END, run_id) AS rn FROM drive_state WHERE run_id IN (${run_id:singlequote})) SELECT je.key AS code, SUM(CAST(je.value AS INTEGER)) AS occurrences FROM ranked r JOIN drive_state_classifications c ON c.run_id = r.run_id AND c.candidate_key = r.candidate_key, json_each(c.error_code_counts) je WHERE r.rn = 1 AND r.status = 'not_reproducible' AND c.category = 'RUSTC_BITROT' AND c.error_code_counts IS NOT NULL AND c.error_code_counts != '' GROUP BY code ORDER BY occurrences DESC LIMIT 15",
+          "queryText": "WITH ranked AS (SELECT run_id, candidate_key, status, ROW_NUMBER() OVER (PARTITION BY candidate_key ORDER BY CASE status WHEN 'ok' THEN 0 WHEN 'ok_after_relock' THEN 1 WHEN 'flaky' THEN 2 WHEN 'not_reproducible' THEN 3 ELSE 4 END, run_id) AS rn FROM drive_state WHERE run_id IN (${run_id:singlequote})) SELECT je.key AS code, SUM(CAST(je.value AS INTEGER)) AS occurrences FROM ranked r JOIN drive_state_classifications c ON c.run_id = r.run_id AND c.candidate_key = r.candidate_key, json_each(c.error_code_counts) je WHERE r.rn = 1 AND r.status = 'not_reproducible' AND c.category = 'RUSTC_BITROT' AND c.error_code_counts IS NOT NULL AND c.error_code_counts != '' GROUP BY code ORDER BY occurrences DESC LIMIT 15",
+          "timeColumns": []
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "showValue": "always"
+      }
+    },
+    {
+      "id": 411,
+      "title": "RQ4 — Pipeline-fixable vs corpus-property",
+      "type": "piechart",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 99
       },
       "datasource": {
         "type": "frser-sqlite-datasource",
