@@ -7,3 +7,4 @@ data/rebatchi/
 data/pipeline.sqlite
 data/pipeline.sqlite-wal
 data/pipeline.sqlite-shm
+.pytest_cache/

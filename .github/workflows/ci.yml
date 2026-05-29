@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    name: compile + unit tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+        # No submodule: the unit suite is submodule-free (it validates the
+        # committed schema example, not the data/cargo entries).
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package + dev deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+
+      - name: Compile-check all modules
+        # Catches syntax errors across the whole tree (the cheap canary that
+        # would have caught the MSRV-parser regression's blast radius).
+        run: |
+          python -m py_compile $(git ls-files '*.py')
+
+      - name: Run unit tests
+        run: pytest -q
+
+  index-integrity:
+    name: rebuild + verify entry index
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+        # Pulls data/cargo (the entry JSONs). If the submodule is private or
+        # unavailable this job will fail to check out — that's acceptable;
+        # the `test` job above is the always-green gate.
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Rebuild index from committed entries
+        run: |
+          python scripts/rebuild_index.py --db /tmp/pipeline.sqlite
+
+      - name: Verify no drift between entries and index
+        run: |
+          python scripts/verify_index.py --db /tmp/pipeline.sqlite
