@@ -170,7 +170,6 @@ RUN if [ "${INCLUDE_GUI}" = "1" ]; then \
         apt-get install -y --no-install-recommends \
             libgtk-3-dev \
             libglib2.0-dev \
-            libgdk-pixbuf2.0-dev \
             libpango1.0-dev \
             libcairo2-dev \
             libatk1.0-dev \
@@ -180,6 +179,10 @@ RUN if [ "${INCLUDE_GUI}" = "1" ]; then \
             libwayland-dev \
             libegl-dev \
             libgl-dev; \
+        : "gdk-pixbuf dev package was renamed libgdk-pixbuf2.0-dev -> "; \
+        : "libgdk-pixbuf-2.0-dev in trixie; install whichever exists."; \
+        apt-get install -y --no-install-recommends libgdk-pixbuf-2.0-dev \
+          || apt-get install -y --no-install-recommends libgdk-pixbuf2.0-dev; \
     fi
 
 # Sanity check
