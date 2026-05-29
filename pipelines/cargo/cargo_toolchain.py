@@ -26,7 +26,13 @@ from ._candidate import gh_headers  # noqa: E402 — package-relative helper.
 RUST_VER_RE = re.compile(r"^(\d+)\.(\d+)(?:\.(\d+))?$")
 
 
-def _normalize_channel(channel: str) -> str | None:
+def _normalize_channel(channel) -> str | None:
+    # `rust-version` in modern Cargo.toml can be `rust-version.workspace = true`,
+    # which tomllib parses as the dict {"workspace": True}. Treat any non-str
+    # value as "missing"; the caller's workspace-package fallback path handles
+    # the inheritance separately.
+    if not isinstance(channel, str):
+        return None
     c = channel.strip().strip('"').strip("'")
     if not c:
         return None
@@ -104,10 +110,12 @@ def _channel_from_cargo_toml_bytes(data: bytes) -> str | None:
         parsed = tomllib.loads(data.decode("utf-8", errors="replace"))
     except Exception:
         return None
-    ver = (
-        (parsed.get("package") or {}).get("rust-version")
-        or ((parsed.get("workspace") or {}).get("package") or {}).get("rust-version")
-    )
+    # Try [package].rust-version first; if it's a workspace-inheritance
+    # marker (a dict like {"workspace": true}), fall through to
+    # [workspace.package].rust-version.
+    ver = (parsed.get("package") or {}).get("rust-version")
+    if not isinstance(ver, str):
+        ver = ((parsed.get("workspace") or {}).get("package") or {}).get("rust-version")
     return _normalize_channel(ver) if ver else None
 
 

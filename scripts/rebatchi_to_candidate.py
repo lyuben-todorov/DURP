@@ -177,12 +177,43 @@ def main() -> int:
     )
     args = p.parse_args()
 
-    out_fh = sys.stdout if args.out == "-" else open(args.out, "w")
-    n_in = n_out = 0
+    # Resume support: when --out is a file, append rather than overwrite,
+    # and skip input rows whose (repo, pr_number) already appears in the
+    # output. Lets a crashed run pick up where it left off without
+    # re-burning enrichment API calls.
+    already_done: set[tuple[str, int]] = set()
+    if args.out != "-":
+        try:
+            with open(args.out) as ef:
+                for line in ef:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                        already_done.add((rec["repo"], int(rec["pr_number"])))
+                    except (json.JSONDecodeError, KeyError, ValueError):
+                        continue
+        except FileNotFoundError:
+            pass
+        if already_done:
+            print(f"resume: skipping {len(already_done)} already-enriched rows",
+                  file=sys.stderr)
+
+    out_fh = sys.stdout if args.out == "-" else open(args.out, "a")
+    n_in = n_out = n_skip = 0
     row_iter = iter_csv(args.csv) if args.csv else iter_jsonl(args.jsonl)
     try:
         for row in row_iter:
             n_in += 1
+            try:
+                row_key = (f"{row['Owner']}/{row['Repo']}",
+                           int(float(row["Number"])))
+            except (KeyError, TypeError, ValueError):
+                row_key = None
+            if row_key is not None and row_key in already_done:
+                n_skip += 1
+                continue
             if args.skip_gh_verify:
                 m = BUMP_RE.search(row.get("Title") or "")
                 if not m:
@@ -209,7 +240,8 @@ def main() -> int:
             if args.limit and n_out >= args.limit:
                 break
 
-        print(f"translated {n_out}/{n_in} rows", file=sys.stderr)
+        print(f"translated {n_out}/{n_in} rows ({n_skip} skipped via resume)",
+              file=sys.stderr)
     finally:
         if out_fh is not sys.stdout:
             out_fh.close()
