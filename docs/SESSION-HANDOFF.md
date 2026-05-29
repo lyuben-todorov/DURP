@@ -8,38 +8,31 @@ results. Delete or update freely — it is a working note, not an artifact.
 
 This session did **repo-hardening for the final defense**, not new
 research: a reproduction runbook, the first test suite + CI, a docs
-cleanup, branch hygiene, and it kicked off + completed the 2024–2025
-live-mine. The live-mine output (5,401 candidates) is **mined but not
-yet driven** — that is the obvious next work.
+cleanup, branch hygiene, the 2024–2025 live-mine, a second
+image-substitution recovery experiment (native-dep), and DB tidy-up.
+RQ3 (driving the 5,401 live-mined candidates) is being handled by a
+separate agent.
 
-## Git state (as of this handoff)
+## Git state (current)
 
 **Main repo (`DURP`, https://github.com/lyuben-todorov/DURP), branch `master`:**
-- Three commits this session, latest two **unpushed**:
-  - `ade0133` cleanup (pushed)
-  - `929023e` tests + CI (pushed)
-  - `aad3bc5` reproduction runbook + docs/findings + link/clone fixes +
-    submodule pointer bump to `9e536f8` (**unpushed** — `origin/master..master` = 1)
-- **Untracked:** `docs/SESSION-HANDOFF.md` (this file). Working tree
-  otherwise clean.
-- **Default branch is `master`** (not `main`). Only `master` exists now;
+- `master` is **in sync with origin** (`origin/master..master` = 0).
+- `origin` remote URL repointed to `git@github.com:lyuben-todorov/DURP.git`
+  (was the old `dep-updates-rp` name).
+- **Default branch is `master`** (not `main`). Only `master` exists;
   `db` and `round-2-fixes` were deleted this session (both fully merged).
-- `origin` remote URL still points at the old `dep-updates-rp` name; it
-  redirects to `DURP`. Optional: `git remote set-url origin
-  git@github.com:lyuben-todorov/DURP.git`.
+- Working tree clean except the RQ3 agent's WIP (`launch_livemine_drive.sh`
+  and `docs/findings/live-mine-rq3-prep.md`).
 
 **Data submodule (`data/cargo/` → dep-updates-rp-data), branch `ds1-full-crack-r2`:**
-- Checked out at `ds1-full-crack-r2`, **1,407 entries** (was 1,359 at
-  session start; fetched + fast-forwarded this session). Main-repo
-  pointer already bumped to it in `aad3bc5`.
-- **1 unpushed commit:** `9e536f8` — README updated to v0.0.5 + cohort
-  docs. Entries untouched. Append-only, safe to push.
+- **1,415 entries**, pushed (`origin/ds1-full-crack-r2` = `fd3f7e0`).
+  Main-repo submodule pointer bumped to match (`6ab6b88`).
+- History: Run B (1,359) → OpenSSL-stretch +48 (1,407) → native-dep +8
+  (1,415) → README at 54.3 %. Append-only; entries never rewritten.
 
 ### Pending outward actions (need user trigger)
-1. Push main `master` to origin (1 commit ahead: `aad3bc5`).
-2. Push the submodule's `9e536f8` to `origin/ds1-full-crack-r2`.
-3. Commit `docs/SESSION-HANDOFF.md` if you want it tracked (optional —
-   it's a working note).
+- None outstanding — main repo and data branch are both pushed and in
+  sync.
 
 ## What landed this session (all on `master`, pushed unless noted)
 
@@ -61,23 +54,28 @@ yet driven** — that is the obvious next work.
    defense-grade, for an external verifier of the `ds1-full-crack-r2`
    artifact. Three tracks: A (verify entries, Python-only, ~10min),
    B (rebuild a fat image + re-verify one reproduction's fingerprint),
-   C (full re-run). All Track-A commands verified against the live 1,407
-   entries. Brought `docs/findings/` into the repo (3 provenance docs)
+   C (full re-run). All Track-A commands verified against the live cohort
+   (now 1,415 after the native-dep merge). Brought `docs/findings/` into
+   the repo (provenance docs)
    so the runbook's citations resolve; fixed all outside-repo dead links
    across README + docs/cargo.
 
-## Key numbers (recomputed from the 1,407 published entries this session)
+## Key numbers (recomputed from the 1,415 published entries)
 
-- **Reproducibility: 53.9 %** (1,407/2,608), 95 % Wilson CI 52.0–55.9 %.
+- **Reproducibility: 54.3 %** (1,415/2,608), 95 % Wilson CI 52.3–56.2 %.
   This is the **merged** headline = Run B (1,359, 52.1 %) + OpenSSL-stretch
-  sub-cohort (+48). The 53.9 vs 52.1 distinction is documented in the
-  runbook §0 and §6 — do not conflate them.
-- **Breaking rate (RQ2): 6.1 %** of reproduced (86 breaking / 1,321 non-breaking).
-- **Version split:** 1,218 patch / 168 minor / 20 major / 1 other.
+  (+48) + native-dep (+8) recovery sub-cohorts. The layered 52.1 → 53.9 →
+  54.3 story is in runbook §0 and §6 — do not conflate the layers.
+- **Breaking rate (RQ2): 6.1 %** of reproduced (86 breaking / 1,329 non-breaking).
+- **Version split:** 1,224 patch / 170 minor / 20 major / 1 other.
 - **Denominator caveat:** the 2,608-candidate input and `pipeline.sqlite`
-  are git-ignored (crack only). Numerator (1,407 entries) is fully
+  are git-ignored (crack only). Numerator (1,415 entries) is fully
   published & independently verifiable; the *rate* needs the crack DB or
   a full re-run. Runbook §5 is explicit about this.
+- **DB run_ids:** the three recovery sub-cohorts were merged in
+  `pipeline.sqlite` into one run_id `ds1-full-crack-r2.1` (82 candidates,
+  56 ok), recovery-wins dedup. Pre-merge backup on crack at
+  `/tmp/pipeline.sqlite.bak-premerge-*`.
 
 ## Live-mine (2024–2025 recent cohort, for RQ3) — COMPLETE
 
@@ -105,15 +103,17 @@ yet driven** — that is the obvious next work.
   multi-run is an acceptable alternative to the full 12-day run.
 - **Two untracked scratch scripts on crack** (`scripts/build_openssl_cohort.py`,
   `scripts/build_rerun_cohort.py`) — real artifacts, untracked. Decide:
-  commit as provenance or gitignore.
-- **`fat_image.py::register_fingerprint()`** — verified dead (uncalled,
-  the unwired multi-arch path). Flagged, not deleted.
-- **OpenSSL case study writeup** — exists scattered across findings docs;
-  could be a standalone `docs/findings/openssl-case-study.md` (48/64
-  recovered = 75 %; the 14 misclassified-as-OPENSSL were really
-  TEST_FAILURE → classifier-precision evidence).
+  commit as provenance or gitignore. (`build_native_dep_cohort.py` is
+  committed; these two predate it.)
+- **Grafana `dataset-results.json`** still filters on the old
+  `ds1-full-crack-r2-openssl-stretch` run_id, which was merged into
+  `ds1-full-crack-r2.1` — that panel will read empty until repointed.
 - **2021 cohort −4.9pp regression** and the single `ok_after_relock` —
   open questions in `docs/findings/ds1-full-r2-findings.md` §Open questions.
+
+Resolved since first draft: `register_fingerprint` deleted; OpenSSL +
+native-dep case studies written (`docs/findings/*-case-study.md`);
+origin repointed to `DURP`.
 
 ## Presentation
 

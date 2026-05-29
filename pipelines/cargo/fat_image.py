@@ -573,7 +573,8 @@ def introspect_fat_image(tag: str) -> FatImageRecord:
 
     Leaves firstSeenAt unset (caller stamps it). The returned record has a
     single environmentFingerprints entry for the platform the image was built
-    for — additional platforms' fingerprints land via `register_fingerprint`.
+    for. Cross-platform fingerprints are added by re-introspecting on the
+    other architecture and re-registering the tag (see the `register` CLI).
     """
     platform = _detect_image_platform(tag)
 
@@ -636,28 +637,6 @@ def introspect_fat_image(tag: str) -> FatImageRecord:
             packageCount=pkg_count,
         ),),
     )
-
-
-def register_fingerprint(tag: str, fp: FatImageFingerprint,
-                         path: Path = INDEX_PATH) -> None:
-    """Add or replace a per-platform fingerprint on an existing fat-image record.
-
-    Raises IndexError if the tag isn't registered. Replaces an existing
-    fingerprint for the same platform (apt jitter can theoretically shift a
-    digest; we keep the latest).
-    """
-    records = load_index(path)
-    for i, r in enumerate(records):
-        if r.tag != tag:
-            continue
-        others = tuple(existing for existing in r.environmentFingerprints
-                       if existing.platform != fp.platform)
-        records[i] = dataclasses.replace(
-            r, environmentFingerprints=others + (fp,),
-        )
-        save_index(records, path)
-        return
-    raise IndexError(f"tag not registered: {tag}")
 
 
 # ---- CLI ---------------------------------------------------------------------
