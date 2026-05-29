@@ -11,6 +11,7 @@ repository so an examiner can trace every claim to its source.
 | [`ds1-full-findings.md`](ds1-full-findings.md) | The first full run (`ds1-full-crack`, baseline, 46.4 %). Superseded by the r2 report as the headline, kept for the before/after comparison. |
 | [`rebatchi.md`](rebatchi.md) | Dataset provenance: how the candidate cohort derives from Rebatchi DS1, the filter recipe, and the Dataset-1-vs-2 decision. |
 | [`openssl-case-study.md`](openssl-case-study.md) | The OpenSSL-stretch sub-cohort: image substitution recovers 48/64 (the +48 behind 53.9 % vs 52.1 %), and a DB-verified classifier-precision result (14/64 labelled `OPENSSL_MISMATCH` were really `TEST_FAILURE`). |
+| [`native-dep-case-study.md`](native-dep-case-study.md) | A second image-substitution study over the 18 `NATIVE_DEP_MISSING` candidates: rebuilding stale fat images recovers 7 (all "missing-package"), confirms 0/6 "undefined-reference" (ABI) cases recover, and motivates splitting the taxonomy class. |
 
 The merged published artifact (`ds1-full-crack-r2` branch, 1,407
 entries, 53.9 %) is Run B plus the OpenSSL-stretch sub-cohort; see
