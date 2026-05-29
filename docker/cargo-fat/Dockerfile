@@ -112,6 +112,10 @@ RUN apt-get install -y --no-install-recommends --allow-unauthenticated \
     libsdl2-dev \
     libxtst-dev \
     libxcb-shape0-dev \
+    # SFML C/C++ bindings (rust `sfml` crate links -lsfml-graphics);
+    # surfaced by the NATIVE_DEP recovery cohort (NoraCodes/deucalion).
+    # Available on stretch (2.4.1) through bookworm.
+    libsfml-dev \
     # video capture / FUSE / desktop notifications.
     libfuse-dev \
     libv4l-dev \
