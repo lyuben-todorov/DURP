@@ -95,9 +95,45 @@ python3 scripts/rebatchi_to_candidate.py \
   --out data/rebatchi/ds1_candidates_enriched.jsonl
 ```
 
-`rebatchi_to_candidate.py` is **not resumable** as of v0.0.4 — if it
-crashes mid-run you restart from row 0. For overnight runs, wrap it in
-`nohup` + redirect stderr.
+`rebatchi_to_candidate.py` is **resume-aware**: point `--out` at an
+existing file and it skips any `(repo, pr_number)` already enriched, so
+a crashed run picks up where it left off without re-burning API calls.
+For overnight runs, wrap it in `nohup` + redirect stderr.
+
+### Option C: live-mine the recent 2024–2025 cohort (RQ3)
+
+For the recent comparison cohort, mine dependency-update PRs across all
+`language:Rust` GitHub repos in a date window. Three stages, chained by
+`scripts/launch_live_mine.sh`:
+
+```bash
+# Defaults: 2024-01-01 → 2026-01-01, N=6000, seed=1337. Override via env.
+START=2024-01-01 END=2026-01-01 N=6000 bash scripts/launch_live_mine.sh
+# logs to data/live-mine/launch.log; output → data/live-mine/candidates_enriched.jsonl
+```
+
+What each stage does:
+
+1. **`cargo_live_search.py`** — `/search/issues` with `language:Rust`,
+   two title queries (`"Bump"` for Dependabot, `"update"` for Renovate),
+   deduped. Auto-recursively splits the window on the Search API's
+   1000-result cap; resume-aware via the sidecar `.windows.jsonl`. Stage
+   1 alone can take several hours for a 2-year window (~1M raw hits).
+2. **`cargo_live_sample.py`** — stratified-by-month sample of `--n`,
+   dropping slash-named (GitHub Actions) bumps. Deterministic with
+   `--seed`.
+3. **`rebatchi_to_candidate.py --require-cargo`** — the same enrichment
+   step as Option B, so the recent cohort is methodologically identical
+   to the historical one.
+
+Then continue from step 4 with
+`--candidates data/live-mine/candidates_enriched.jsonl`.
+
+> **Note on `path:Cargo.toml`**: the GitHub *issues*-search endpoint does
+> not honor the `path:` qualifier (it's code-search only), so we narrow
+> with `language:Rust` instead and rely on Stage 3's `--require-cargo`
+> file-list check to drop non-Cargo PRs (GitHub Actions bumps, etc.) that
+> ride along in Rust repos.
 
 ## Step 4 — Plan the fat images
 
@@ -212,9 +248,36 @@ shutdown that kills tracked containers cleanly (no orphan
 
 ### Useful flags
 
+Throughput / scheduling:
+
 - `--parallel N` — thread-pool worker count. 5 is the sweet spot on
   a 32 GiB host with the per-container memory cap. 8 risks linker
-  OOM on libra/diem-sized workspaces.
+  OOM on libra/diem-sized workspaces. See [Parallelism](#parallelism).
+- `--shuffle` / `--shuffle-seed N` — shuffle the to-do list (after the
+  resume skip-list filter) so expensive fork-clusters don't pile onto
+  the same workers. `--shuffle-seed` makes it deterministic.
+- `--cargo-cache DIR` — bind-mount a host dir at `/usr/local/cargo` in
+  every reproducer container so candidates share the crates.io index +
+  tarball cache (~3-5× less network). Default: `data/cargo-cache/` next
+  to the state file; pass `""` to disable.
+- `--timeout S` — per-stage timeout (default 1800 s). Heavy workspaces
+  hit this; it's the dominant cause of the `TIMEOUT` failure class.
+
+Reproduction contract / sanity:
+
+- `--attempts N` — repeat each candidate's pre and post `cargo test`
+  N times. Mixed pass/fail across attempts marks the candidate
+  `ok_flaky` / `not_reproducible_flaky` (BUMP-style multi-run sanity;
+  default 1). Wall-clock multiplies roughly by N.
+- `--relax-locked` — on a `not_reproducible` outcome classified
+  `LOCK_FILE_STALE`, retry once with `cargo generate-lockfile && cargo
+  test --frozen` instead of `--locked`. Successful retries get the
+  distinct status `ok_after_relock` (kept separate so the headline rate
+  doesn't conflate strict-contract reproductions with
+  lockfile-regenerated ones).
+
+Bucketing / images:
+
 - `--force-fat-image TAG` — bypasses the bucketer, routes every
   candidate to TAG. Used for hypothesis-driven retries (e.g.
   routing the OPENSSL_MISMATCH cohort to a stretch image regardless
@@ -227,17 +290,27 @@ shutdown that kills tracked containers cleanly (no orphan
   for missing images get recorded as `fat_image_missing`. Useful for
   partial runs where some images aren't built yet.
 
+Post-hoc:
+
+- `--reclassify` — skip reproduction entirely; re-read each candidate's
+  `<short>-pre.log` under `--logs-dir`, re-run the Scheme-2 classifier,
+  and upsert `drive_state_classifications`. Applies newer classifier
+  rules to an old run without re-running cargo. Requires `--db` +
+  `--run-id`.
+
 ### Status distribution you should expect
 
 DS1-full (n=2608) under canonical bucketer, 2026-05-12:
 
 - **46.4 %** `ok` — entries written. The reproducible cohort.
 - **53.5 %** `not_reproducible` — pre-commit build failed; subdivided
-  by `scripts/reclassify_failures.py` into 12 categories
-  (RUSTC_BITROT, RUNTIME_CRASH, OPENSSL_MISMATCH, NIGHTLY_REQUIRED,
-  REPO_GONE, DEPENDENCY_RESOLUTION, LOCK_FILE_STALE, TIMEOUT,
-  NATIVE_DEP_MISSING, NETWORK_ERROR, TEST_FAILURE, OTHER). See
-  `schema/failure-taxonomy.md` Scheme 2.
+  by the Scheme-2 classifier (`cargo_failure_classifier.py`, wired into
+  the driver) into categories such as RUSTC_BITROT, RUNTIME_CRASH,
+  OPENSSL_MISMATCH, NIGHTLY_REQUIRED, REPO_GONE, LOCK_FILE_STALE,
+  NATIVE_DEP_MISSING, TEST_FAILURE, … — `schema/failure-taxonomy.md`
+  Scheme 2 is the canonical list. Classification happens inline during a
+  run; to re-apply newer rules to an old run's logs without
+  re-reproducing, use `cargo_drive --reclassify` (see below).
 - **0.1 %** `regenerate_mismatch` — entry already existed on disk
   but `cargo_regenerate` produced a different outcome on this host
   vs the entry's recorded category.
@@ -313,11 +386,26 @@ line from the state file.
 
 ### Parallelism
 
-The `--parallel N` flag in `cargo_drive.py` is a stub — it prints a
-warning and serializes anyway. For real parallelism, run N driver
-processes over disjoint candidate chunks with separate state files
-against the same `--db`. Expect 2-4× throughput on a 16-core VM
-before hitting RAM / CPU contention on `cargo test` workloads.
+`--parallel N` runs a `ThreadPoolExecutor` of N workers, each driving an
+independent candidate while the Docker daemon handles the concurrent
+containers. No manual sharding needed — one driver process, one `--state`
+JSONL, one `--db`. DB writes are serialized under a lock when N>1.
+
+Two constraints:
+
+- **Pre-build all fat images first.** `--parallel N>1` is incompatible
+  with `--build-missing-bases` (concurrent index writes would race). Run
+  step 4/5 to completion before driving in parallel.
+- **RAM-bound, not CPU-bound.** Each `cargo test` can use ~4-8 GB. On a
+  32 GiB host, `--parallel 5` is the sweet spot; 8 risks linker OOM on
+  libra/diem-sized workspaces. Good starting points: 4 on a 16-core box,
+  8 on a 32-core box.
+
+`--shuffle` (optionally with `--shuffle-seed`) spreads expensive
+fork-clusters (libra/diem/solana families, or runs of adjacent PRs that
+share heavy deps) across workers, so one 30-min linker doesn't block N
+workers while its siblings queue behind it. Shuffle happens after the
+resume skip-list filter, so it's resume-safe.
 
 ## Troubleshooting
 

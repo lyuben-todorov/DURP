@@ -1,5 +1,56 @@
 # Changelog
 
+## Unreleased — round-2 pipeline work
+
+No schema change; `SCHEMA_VERSION` stays at 0.0.5. Driver, classifier,
+and mining changes accumulated since the DS1-full run.
+
+**Live-mine pipeline (recent 2024–2025 cohort, RQ3).**
+- `scripts/cargo_live_search.py` — GitHub `/search/issues` miner with
+  `language:Rust`, dual title queries (`"Bump"` + `"update"`), dedup, and
+  auto-recursive date-window splitting around the Search API's
+  1000-result cap. Resume-aware via a sidecar `.windows.jsonl`.
+- `scripts/cargo_live_sample.py` — stratified-by-month sampler; drops
+  slash-named (GitHub Actions) bumps; deterministic with `--seed`.
+- `scripts/launch_live_mine.sh` — chains search → sample →
+  `rebatchi_to_candidate.py --require-cargo` into `data/live-mine/`.
+- Reuses the DS1 enrichment path so historical and recent cohorts are
+  enriched identically.
+
+**Driver (`cargo_drive.py`).**
+- `--parallel N` is a real `ThreadPoolExecutor` (N worker threads, one
+  candidate each; DB writes lock-guarded under N>1). Requires fat images
+  pre-built (incompatible with `--build-missing-bases`). The old "stub
+  that serialises" behaviour and its docstring/runbook notes are gone.
+- `--attempts N` — multi-run sanity (BUMP-style); mixed outcomes mark
+  `ok_flaky` / `not_reproducible_flaky`.
+- `--relax-locked` — recover `LOCK_FILE_STALE` via
+  `cargo generate-lockfile && cargo test --frozen`; success becomes the
+  distinct status `ok_after_relock`.
+- `--shuffle` / `--shuffle-seed`, `--cargo-cache`, `--reassemble-stale`,
+  `--skip-preflight`, `--force-fat-image` documented in
+  `docs/cargo/running-a-batch.md`.
+- `--reclassify` — post-hoc Scheme-2 re-classification over an existing
+  run's logs (no reproduction). Replaces the old standalone
+  `scripts/reclassify_failures.py` shim, now removed.
+- Scheme-2 classifier (`cargo_failure_classifier.py`) wired into the
+  driver, run inline during a batch; `error_code_counts` (full
+  `{E_code: count}` distribution) recorded per classified candidate.
+
+**Enrichment (`rebatchi_to_candidate.py`, `cargo_toolchain.py`).**
+- `rebatchi_to_candidate.py` is now resume-aware (append to `--out`, skip
+  already-enriched `(repo, pr_number)`).
+- MSRV parser handles workspace-inherited `rust-version` — modern
+  `Cargo.toml` may write `rust-version.workspace = true`, parsed as a
+  dict; the parser now falls through to `[workspace.package].rust-version`
+  instead of crashing.
+
+**Removed.** `scripts/reclassify_failures.py` (folded into
+`cargo_drive --reclassify`); `scripts/migrate_v0_0_5.py`,
+`scripts/migrate_error_code_counts.sql`,
+`scripts/migrate_reproduction_attempts.sql` (spent one-shot migrations
+whose effects are in the `bump_ext.db` baseline schema).
+
 ## v0.0.5 — 2026-05-07
 
 Per-architecture environment fingerprints. Entries now accumulate
@@ -13,9 +64,11 @@ false-fail.
   `reproduction.environmentFingerprints` (list). Each item now carries
   a required `platform` field (`linux/<arch>`) alongside `digest`,
   `files[]`, `rustcVersion`, `packageCount`. At least one entry required.
-- Backfill: run `scripts/migrate_v0_0_5.py` once to wrap existing scalar
-  fingerprints into single-item lists tagged `linux/arm64` (the arch on
-  which the two seed entries were produced).
+- Backfill (at the time): `scripts/migrate_v0_0_5.py` wrapped existing
+  scalar fingerprints into single-item lists tagged `linux/arm64` (the
+  arch the two seed entries were produced on). That one-shot has since
+  been applied to all committed entries and the script removed — see the
+  Unreleased section.
 
 **Fat-image ledger (`docker/cargo-fat/index.json`).**
 - `environmentFingerprint: "sha256:..."` + `packageCount: N` at the

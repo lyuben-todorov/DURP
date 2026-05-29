@@ -22,10 +22,14 @@ Wires together the pipeline stages under a single entry point:
   2. Append a per-candidate record to --state. Resumable: candidates with
      a terminal record in --state are skipped on subsequent runs.
 
+Parallelism. --parallel N runs a ThreadPoolExecutor of N workers, each
+driving an independent candidate; the Docker daemon handles the
+concurrent containers. N>1 requires all fat images pre-built
+(incompatible with --build-missing-bases, whose index writes would
+race). DB writes are guarded by a lock under N>1.
+
 Non-goals for this driver:
 
-- Parallelism. --parallel > 1 logs a warning and serialises anyway. Docker
-  builds serialise on the daemon; premature parallelism invites churn.
 - Fat-image clustering. Each candidate's canonical tag is deterministic
   (see fat_image.canonical_sde_for); buckets that share a tag via
   rust_base_pub coincidence are the only form of cross-bucket sharing.
@@ -807,9 +811,9 @@ def _reclassify_mode(args) -> int:
     the result. Idempotent — same primary key, ON CONFLICT DO UPDATE.
 
     No reproduction is run; this is purely "the rules changed, update old
-    rows". The contract used to be a separate `scripts/reclassify_failures.py`
-    script; folding it into the driver keeps DB writes on one path and
-    populates the same Grafana dashboards as live runs.
+    rows". This was once a separate script; folding it into the driver
+    keeps DB writes on one path and populates the same Grafana dashboards
+    as live runs.
     """
     if not args.db or not args.run_id:
         print("ERROR: --reclassify requires both --db and --run-id",

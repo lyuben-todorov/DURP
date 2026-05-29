@@ -1,7 +1,7 @@
 # Cargo pipeline
 
 Mining and reproduction pipeline for Rust/Cargo dependency updates.
-Produces schema-valid (v0.0.4) entries under `data/cargo/` conforming to
+Produces schema-valid (v0.0.5) entries under `data/cargo/` conforming to
 [`schema/entry.schema.json`](../../schema/entry.schema.json).
 
 For the end-to-end runbook (fresh checkout → verified entries), see
@@ -63,6 +63,46 @@ Dependabot/Renovate that touch only `Cargo.toml` (and optionally
 `Candidate` per PR. Populates `rust_msrv` + `post_commit_date`
 (4 GitHub API calls per emitted candidate).
 
+This is the **per-repo** miner (you give it one `owner/repo`). For
+**population-scale** mining across all of GitHub in a date window —
+used to build the 2024–2025 "recent" cohort for RQ3 — see the
+three-stage live-mine pipeline in `scripts/` below.
+
+### live-mine pipeline (`scripts/cargo_live_*` + `launch_live_mine.sh`)
+
+Population-scale counterpart to `cargo_miner.py`. Mines dependency-update
+PRs across all `language:Rust` GitHub repos in a date window, then reuses
+the DS1 enrichment path so historical and recent cohorts go through
+identical enrichment (clean for the RQ3 comparison).
+
+```
+scripts/cargo_live_search.py   Stage 1   GitHub Search API → search_hits.jsonl
+scripts/cargo_live_sample.py   Stage 1.5 stratified monthly sample → search_sample.jsonl
+scripts/rebatchi_to_candidate.py --require-cargo
+                               Stage 3   enrich + Cargo-only filter → candidates_enriched.jsonl
+```
+
+- **Stage 1** (`cargo_live_search.py`) — queries `/search/issues` with
+  `language:Rust` (the `path:Cargo.toml` qualifier is unsupported on the
+  issues-search endpoint; a bare `"Bump"` title search yields ~70K
+  hits/day, `language:Rust` narrows ~20×). Two title queries (`"Bump"`
+  for Dependabot, `"update"` for Renovate), deduped on
+  `(owner, repo, number)`. Auto-recursively splits the date window when a
+  query exceeds the Search API's 1000-result cap; hour-floor saturation
+  is logged with a `saturated_at_hour_floor` flag in the sidecar
+  `.windows.jsonl`. Resume-aware.
+- **Stage 1.5** (`cargo_live_sample.py`) — stratified-by-month sample of
+  size `--n` from Stage 1 output. Drops slash-named bumps via `BUMP_RE`
+  first (filters `actions/checkout`, `cachix/*` and similar non-Cargo
+  bumps that ride along in Rust repos). Deterministic with `--seed`.
+- **Stage 3** — the existing `rebatchi_to_candidate.py --require-cargo`
+  (same script the DS1 path uses), which confirms Cargo-only file lists
+  and resolves SHAs/MSRV/dates.
+
+`launch_live_mine.sh` chains all three (`START`/`END`/`N`/`SEED` env
+overrides; defaults `2024-01-01 → 2026-01-01`, `N=6000`). Output lands
+in `data/live-mine/`.
+
 ### `cargo_toolchain.py` — MSRV + commit-date fetchers
 
 Two API surfaces:
@@ -74,10 +114,14 @@ Two API surfaces:
   `commit_date_at(repo, sha)` — used by the candidate producers.
 
 MSRV precedence (strongest first): `rust-toolchain.toml` →
-`rust-toolchain` → `Cargo.toml:[package].rust-version` → edition
-fallback (`edition = "2021"` → `"1.56"`). Returns `None` for channel
-tags (`stable`, `beta`, `nightly`) since they don't pin a concrete rust
-version.
+`rust-toolchain` → `Cargo.toml:[package].rust-version` (falling through
+to `[workspace.package].rust-version` when the package entry is a
+`workspace = true` inheritance marker). Returns `None` when nothing
+explicit is found, and for channel tags (`stable`, `beta`, `nightly`)
+since they don't pin a concrete rust version. When MSRV is `None`,
+`fat_image.bucket_for` applies the "latest milestone at commit time"
+fallback (not an edition-floor — that was removed in the v0.0.4
+addendum).
 
 `debian_release_for(date)` picks a Debian codename from a commit date
 (pre-2021-08 → buster, 2021-08 to 2023-06 → bullseye, 2023-06 to
@@ -294,13 +338,12 @@ pipeline and can be regenerated to verify.
 - **Miner only parses simple `name = "x.y.z"` bumps**. Table-style
   entries (`[dependencies.name] \n version = "…"`) are regex-matched
   but untested.
-- **Flaky-test detection not implemented.** BUMP runs each build 3×;
-  we run once.
+- **Flaky-test detection is opt-in.** `cargo_drive --attempts N` repeats
+  each candidate's pre/post `cargo test` N times; mixed outcomes mark the
+  candidate `ok_flaky` / `not_reproducible_flaky`. Default is a single
+  attempt (BUMP runs each build 3×).
 - **`versionUpdateType` requires a three-part semver** — `0.20 → 0.21`
   classifies as `other`.
-- **Candidate enrichment is not resumable**. If
-  `rebatchi_to_candidate.py` is killed mid-run, it restarts from row 0.
-  Fix tracked in `../../../docs/db-design.md`.
 - **Environmental vs outcome failure indistinguishable** — a docker
   daemon crash, disk-full, or network hiccup look identical to a
   legitimate pre-build failure at exit-code level. Inspect logs to

@@ -203,8 +203,7 @@ CREATE INDEX IF NOT EXISTS idx_drive_status ON drive_state(status);
 -- Scheme-2 (reproduction-failure) classifier output. One row per
 -- not_reproducible candidate, written either inline by cargo_drive after
 -- the reproducer returns (the live path) or post-hoc by `cargo_drive
--- reclassify` over an existing run's logs. Earlier deployments populated
--- this via scripts/reclassify_failures.py; that script is now a shim.
+-- --reclassify` over an existing run's logs.
 CREATE TABLE IF NOT EXISTS drive_state_classifications (
   run_id             TEXT NOT NULL,
   candidate_key      TEXT NOT NULL,
