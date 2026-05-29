@@ -255,6 +255,66 @@
       ],
       "firstSeenAt": "2026-05-13",
       "notes": "round-2 NLL+edition-2018 cluster: 1.30 anchors edition-2018 boundary."
+    },
+    {
+      "tag": "rp2026/cargo-fat:1.85.0-bookworm-20250318",
+      "rustVersion": "1.85.0",
+      "sourceDateEpoch": 1742256000,
+      "aptSnapshot": "20250318T000000Z",
+      "debianRelease": "bookworm",
+      "environmentFingerprints": [
+        {
+          "platform": "linux/amd64",
+          "digest": "sha256:e54d7ff0f7fb6b111594af9a865177e3867703a4b2ba356c9e7ab1f83035c0b2",
+          "packageCount": 832
+        }
+      ],
+      "firstSeenAt": "2026-05-29"
+    },
+    {
+      "tag": "rp2026/cargo-fat:1.92.0-bookworm-20260113",
+      "rustVersion": "1.92.0",
+      "sourceDateEpoch": 1768262400,
+      "aptSnapshot": "20260113T000000Z",
+      "debianRelease": "bookworm",
+      "environmentFingerprints": [
+        {
+          "platform": "linux/amd64",
+          "digest": "sha256:0be3b589009920cafcab5d713780f18851cd4e9add2ac24ab34f2ded147e13ae",
+          "packageCount": 824
+        }
+      ],
+      "firstSeenAt": "2026-05-29"
+    },
+    {
+      "tag": "rp2026/cargo-fat:1.85.0-bookworm-20251231",
+      "rustVersion": "1.85.0",
+      "sourceDateEpoch": 1767139200,
+      "aptSnapshot": "20251231T000000Z",
+      "debianRelease": "bookworm",
+      "environmentFingerprints": [
+        {
+          "platform": "linux/amd64",
+          "digest": "sha256:da1a1f75b48dc839d105dafb03e17a0b835f00197e3e6902772f81795cefd671",
+          "packageCount": 824
+        }
+      ],
+      "firstSeenAt": "2026-05-29"
+    },
+    {
+      "tag": "rp2026/cargo-fat:1.92.0-trixie-20260122",
+      "rustVersion": "1.92.0",
+      "sourceDateEpoch": 1769040000,
+      "aptSnapshot": "20260122T000000Z",
+      "debianRelease": "trixie",
+      "environmentFingerprints": [
+        {
+          "platform": "linux/amd64",
+          "digest": "sha256:f07a72b004328f56595858274c51614b5ded75b2907f1d7821effecfbf2ec06a",
+          "packageCount": 823
+        }
+      ],
+      "firstSeenAt": "2026-05-29"
     }
   ]
 }
