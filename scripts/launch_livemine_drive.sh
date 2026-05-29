@@ -92,8 +92,13 @@ else
 fi
 
 # 3. The actual drive. nohup so it survives disconnects; --parallel from env.
-#    Bases are now pre-built (step 2), so --build-missing-bases stays OFF
-#    and the driver's preflight should pass.
+#    Bases are pre-built in step 2, so we pass --skip-preflight: the
+#    driver's preflight re-resolves every candidate's MSRV (a GitHub call
+#    for each of the ~75% of modern crates that declare no rust-version),
+#    which is a 5-10min serial network wall on a 600-batch and entirely
+#    redundant when step 2 already guaranteed the images exist. The
+#    per-candidate process() resolves the same metadata anyway, but
+#    interleaved with reproduction instead of upfront.
 echo "[drive] batch=$BATCH parallel=$PARALLEL run_id=$RUN_ID" | tee -a "$LOG"
 nohup .venv/bin/python3 -m pipelines.cargo.cargo_drive \
   --candidates "$STRAT" \
@@ -106,6 +111,7 @@ nohup .venv/bin/python3 -m pipelines.cargo.cargo_drive \
   --max-sde-date "$MAX_SDE" \
   --shuffle --shuffle-seed "$SEED" \
   --relax-locked \
+  --skip-preflight \
   --parallel "$PARALLEL" \
   --host crack \
   >>"$LOG" 2>&1 < /dev/null &
