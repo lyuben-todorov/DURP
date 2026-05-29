@@ -66,7 +66,10 @@ calendar year-end.
 These are what RQ3 will check; recording them now so the drive isn't
 post-hoc rationalised:
 
-1. **Reproducibility should be *higher* than DS1's 53.9 %.** The dominant
+1. **Reproducibility should be *higher* than DS1's headline** (1,407/2,608
+   = 53.9 % at the time of writing; 1,415/54.3 % after the native-dep
+   sub-cohort merged — the prediction is directional and holds against
+   either). The dominant
    DS1 failure modes were era-driven: RUSTC_BITROT (code on too-new
    rustc) and OPENSSL_MISMATCH (old libssl ABI). A 2024–2025 cohort built
    on contemporary rustc (1.85 / 1.92) and bookworm/trixie (libssl 3.x)
