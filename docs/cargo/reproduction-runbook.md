@@ -374,9 +374,10 @@ example of *image-substitution recovery*:
 This is run, recorded, and merged transparently — not folded silently
 into Run B's number. A verifier who wants the strict single-image-policy
 result should use Run B's 52.1 %; the published artifact's 53.9 %
-includes this documented recovery. The full method and the
-classifier-precision finding it surfaced are in
-[`../findings/ds1-full-r2-findings.md`](../findings/ds1-full-r2-findings.md).
+includes this documented recovery. The full method, the 48/64 recovery,
+and the DB-verified classifier-precision finding it surfaced (14 of the
+64 were really `TEST_FAILURE`, not OpenSSL) are written up in
+[`../findings/openssl-case-study.md`](../findings/openssl-case-study.md).
 
 ---
 
