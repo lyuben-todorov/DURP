@@ -110,12 +110,19 @@ RUN apt-get install -y --no-install-recommends --allow-unauthenticated \
     # errors against these; SDL2 alone covered 17 candidates from the
     # evanjs/rrbg fork-cluster).
     libsdl2-dev \
+    # SDL2 companion libs — the rust `sdl2` crate's `image`/`ttf`/`mixer`
+    # features link -lSDL2_image etc. (sunjay/caves links -lSDL2_image).
+    libsdl2-image-dev \
+    libsdl2-ttf-dev \
+    libsdl2-mixer-dev \
     libxtst-dev \
     libxcb-shape0-dev \
-    # SFML C/C++ bindings (rust `sfml` crate links -lsfml-graphics);
-    # surfaced by the NATIVE_DEP recovery cohort (NoraCodes/deucalion).
-    # Available on stretch (2.4.1) through bookworm.
+    # SFML bindings. The rust `sfml` crate links the C binding (CSFML,
+    # -lcsfml-graphics), which depends on the C++ libsfml; install both.
+    # Surfaced by the NATIVE_DEP recovery cohort (NoraCodes/deucalion).
+    # Available on stretch (libsfml 2.4.1 / libcsfml 2.3) through bookworm.
     libsfml-dev \
+    libcsfml-dev \
     # video capture / FUSE / desktop notifications.
     libfuse-dev \
     libv4l-dev \
