@@ -71,7 +71,38 @@ worked at the link level — and a *later, different* blocker surfaced:
 | `GiantPlantsSociety/diamond#240` | `-lrrd` | `TEST_FAILURE` | **fully compiled and linked** — now reaches the test phase and fails there. No longer a native-dep miss at all. |
 
 None regressed. `diamond#240` is now a genuine `TEST_FAILURE`
-reproduction; the others are one apt package away.
+reproduction; the SFML/SDL2 cases looked one apt package away — and the
+follow-on below tested that.
+
+### Follow-on: companion-lib add (run_id `…-native-deps-followon`)
+
+Added `libcsfml-dev` (CSFML, the C binding the Rust `sfml` crate
+actually links) and the SDL2 companion set (`libsdl2-image-dev`,
+`-ttf-dev`, `-mixer-dev`), rebuilt the two affected images, re-drove the
+3 SFML/SDL2 candidates. Result: **1 recovered, 2 advanced again.**
+
+| candidate | original | follow-on result | reading |
+| --- | --- | --- | --- |
+| `sunjay/caves#112` | `-lSDL2_image` | **`ok`** | the SDL2 companion bake completed the recovery. |
+| `NoraCodes/deucalion#14,#17` | `-lcsfml-graphics` | `OTHER` (SIGABRT) | CSFML now links; the crate **compiles and the test binary runs**, then aborts at runtime (signal 6). A runtime/display-context dependence or CSFML↔SFML version skew — **not** a packaging problem. |
+
+So the "one apt package away" intuition held for `caves` (SDL2_image
+exists, bake works) but not for `deucalion`: packaging cleared the link
+and the build, exposing a *runtime* failure that no `-dev` package
+fixes. This is the natural floor of the image-substitution technique —
+it recovers environment-*provisioning* failures (missing/stale
+packages), not environment-*runtime* dependence (a test needing a
+display) or upstream ABI skew.
+
+### Cumulative native-dep recovery
+
+Across both runs: **8 of 18** `NATIVE_DEP_MISSING` candidates recovered
+to `ok` (7 in the first pass + `caves#112` in the follow-on). The
+remaining 10 split into: 6 undefined-reference/ABI (not bakeable), 1
+real `TEST_FAILURE` (`diamond`), 2 runtime SIGABRT (`deucalion`), 1
+follow-on native dep (`cita-common`'s libzmq, untested). Every recovery
+came from the missing-package mechanism; the linker error cleared in
+**all 12** missing-package candidates.
 
 ## Implications
 
@@ -88,18 +119,20 @@ reproduction; the others are one apt package away.
    in the headline taxonomy conflate two very different recoverability
    profiles.
 
-3. **Easy follow-on, ~+3 candidates.** `libcsfml-dev` (2.3-3) and
-   `libsdl2-image-dev` (2.0.1) are both available on stretch and would
-   recover `deucalion#14/#17` and `caves#112`. One Dockerfile line each.
-   Diminishing returns past that — the remaining failures are real test
-   failures or genuine ABI problems.
+3. **Companion-lib follow-on yielded +1, not +3 (tested, §above).**
+   `libsdl2-image-dev` recovered `caves#112`, but `libcsfml-dev` only
+   moved `deucalion` from a *link* failure to a *runtime* SIGABRT — the
+   technique's floor is environment-provisioning, not runtime
+   dependence. The negative result is the useful part: it bounds what
+   image work can recover.
 
-4. **Headline impact, if merged.** 7 recovered / 2,608 candidates =
-   +0.27 pp. As an isolated number this is small; its value is
-   methodological (the split) and compounding (native-dep recovery
+4. **Headline impact, if merged.** 8 recovered / 2,608 candidates =
+   +0.31 pp. As an isolated number this is small; its value is
+   methodological (the missing-package vs ABI split, and the
+   provisioning-vs-runtime floor) and compounding (native-dep recovery
    stacks with the OpenSSL +48 and any future sub-cohort). It is a
    *delta study*, not a correction to the 53.9 % — like OpenSSL, the
-   decision to merge these 7 into the published branch is separate.
+   decision to merge these 8 into the published branch is separate.
 
 ## Provenance
 
