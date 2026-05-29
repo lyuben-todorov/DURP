@@ -315,6 +315,21 @@
         }
       ],
       "firstSeenAt": "2026-05-29"
+    },
+    {
+      "tag": "rp2026/cargo-fat:1.92.0-trixie-20261231",
+      "rustVersion": "1.92.0",
+      "sourceDateEpoch": 1798675200,
+      "aptSnapshot": "20261231T000000Z",
+      "debianRelease": "trixie",
+      "environmentFingerprints": [
+        {
+          "platform": "linux/amd64",
+          "digest": "sha256:a5add6907dbe8371facbe026b7bb36364a5955596870e4a1ce09956bf7bf7fd6",
+          "packageCount": 822
+        }
+      ],
+      "firstSeenAt": "2026-05-29"
     }
   ]
 }
