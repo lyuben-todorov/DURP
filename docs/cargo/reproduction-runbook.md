@@ -7,7 +7,7 @@ artifacts, not take them on trust.
 **Artifact under verification:** the `ds1-full-crack-r2` branch of the
 data repository
 ([`lyuben-todorov/dep-updates-rp-data`](https://github.com/lyuben-todorov/dep-updates-rp-data/tree/ds1-full-crack-r2)),
-wired into this repo as the `data/cargo/` submodule. It contains **1,407
+wired into this repo as the `data/cargo/` submodule. It contains **1,415
 reproduced dependency-update entries**, one JSON per PR, each carrying
 the full environment fingerprint needed to rebuild and re-verify it.
 
@@ -15,7 +15,7 @@ This runbook has three tracks of increasing cost and strength:
 
 | Track | What it proves | Needs | Time |
 | --- | --- | --- | --- |
-| **A. Verify the published entries** | The 1,407 entries are schema-valid, internally consistent, and the numerator-side claims (counts, breaking rate, version-type split) are exactly as reported | Python only | ~10 min |
+| **A. Verify the published entries** | The 1,415 entries are schema-valid, internally consistent, and the numerator-side claims (counts, breaking rate, version-type split) are exactly as reported | Python only | ~10 min |
 | **B. Re-verify a reproduction** | A specific entry's build is *actually* reproducible — rebuild its fat image, confirm the environment fingerprint matches, re-run the test pair | Docker + network | ~15 min/entry |
 | **C. Full re-run from raw DS1** | The whole pipeline, end to end, reproduces the cohort | Docker + GitHub token + days | ~4 days |
 
@@ -33,14 +33,14 @@ The claims a verifier should be able to check:
 
 | # | Claim | Verifiable by |
 | --- | --- | --- |
-| C1 | The reproduced cohort is **1,407 entries**, all schema v0.0.5 | Track A |
-| C2 | Among reproduced PRs, the **breaking rate is 6.1 %** (86/1,407) | Track A |
-| C3 | Version-update split: **1,218 patch / 168 minor / 20 major / 1 other** | Track A |
+| C1 | The reproduced cohort is **1,415 entries**, all schema v0.0.5 | Track A |
+| C2 | Among reproduced PRs, the **breaking rate is 6.1 %** (86/1,415) | Track A |
+| C3 | Version-update split: **1,224 patch / 170 minor / 20 major / 1 other** | Track A |
 | C4 | Each entry's recorded environment fingerprint **rebuilds to the same digest** | Track B |
-| C5 | **Reproducibility rate is 53.9 %** (1,407 of 2,608 candidates), 95 % Wilson CI 52.0–55.9 % | Track C (see §5 on the denominator) |
+| C5 | **Reproducibility rate is 54.3 %** (1,415 of 2,608 candidates), 95 % Wilson CI 52.3–56.2 % | Track C (see §5 on the denominator) |
 
 **Read this boundary carefully — it is deliberate.** The *numerator*
-(the 1,407 reproduced entries) is fully published, so C1–C4 are
+(the 1,415 reproduced entries) is fully published, so C1–C4 are
 independently verifiable from the artifact alone. The *denominator* (the
 2,608-candidate input cohort and the per-candidate `drive_state` ledger)
 is **not** in the published artifact — it lives in the run host's working
@@ -51,24 +51,33 @@ host's database or a full Track-C re-run. §5 explains how to obtain or
 regenerate the denominator. We flag this rather than imply the rate is
 checkable from the entries — it is not.
 
-### The 53.9 % vs 52.1 % distinction (do not skip)
+### The headline is layered (do not skip)
 
-Two numbers appear in the project's notes; both are correct and they
-measure different things:
+Several numbers appear in the project's notes; all are correct and they
+measure different things. The published artifact is the **merged**
+cohort — Run B plus two documented image-substitution sub-cohorts:
 
-- **52.1 %** = **Run B alone** (`ds1-full-crack-r2`, the single
-  end-to-end pass): 1,359 reproduced / 2,608. 95 % Wilson CI 50.2–54.0 %.
-- **53.9 %** = **Run B + the OpenSSL-stretch sub-cohort** (the published
-  merged branch): 1,407 reproduced / 2,608. 95 % Wilson CI 52.0–55.9 %.
+| Layer | Reproduced / 2,608 | Rate | 95 % Wilson CI |
+| --- | ---: | ---: | --- |
+| **Run B alone** (`ds1-full-crack-r2`, single end-to-end pass) | 1,359 | **52.1 %** | 50.2–54.0 % |
+| **+ OpenSSL-stretch sub-cohort** (+48) | 1,407 | 53.9 % | 52.0–55.9 % |
+| **+ native-dep recovery sub-cohort** (+8) → **published** | **1,415** | **54.3 %** | 52.3–56.2 % |
 
-The +48 entries are the OpenSSL-stretch recovery: candidates that failed
-under their era-floor fat image (whose Debian ships only libssl 1.1.x)
-but reproduce under a stretch-era image (libssl 1.0.2 + 1.1.0 dual),
-run as a separate, documented sub-cohort with its own `run_id`. The
-published artifact is the **merged** cohort, so its headline is **53.9 %**.
-A verifier who wants the strict single-contract number should cite
-52.1 %; the sub-cohort recovery is a deliberate, separately-run delta,
-not a silent inflation. See §6.
+Each sub-cohort is an environment-substitution recovery run with its own
+`run_id`, kept as a measured delta and then merged into the published
+branch:
+
+- **OpenSSL-stretch (+48):** candidates failing under their era-floor fat
+  image (Debian shipping only libssl 1.1.x) that reproduce under a
+  stretch-era image (libssl 1.0.2 + 1.1.0 dual). See §6.
+- **native-dep (+8):** `NATIVE_DEP_MISSING` candidates recovered by
+  rebuilding stale fat images with the round-2 native-dep apt layer (+ a
+  few added packages). See
+  [`../findings/native-dep-case-study.md`](../findings/native-dep-case-study.md).
+
+A verifier who wants the strict single-contract number should cite Run
+B's **52.1 %**; the published artifact's **54.3 %** includes both
+deliberate, separately-run recoveries — not silent inflation.
 
 ---
 
@@ -91,10 +100,10 @@ pip install -e .
 Confirm you have the artifact:
 
 ```bash
-ls data/cargo/cargo-*.json | wc -l        # expect: 1407
+ls data/cargo/cargo-*.json | wc -l        # expect: 1415
 ```
 
-If this prints 1407 you are on the verified branch. (The submodule's
+If this prints 1415 you are on the verified branch. (The submodule's
 default branch `main` carries the two seed entries only; the
 `ds1-full-crack-r2` checkout is what holds the full cohort.)
 
@@ -110,7 +119,7 @@ For Track B you additionally need Docker with buildx (a
 This recomputes C1–C3 directly from the entry JSONs and validates every
 entry against the shipped JSON Schema. No Docker, no network.
 
-### A.1 Schema-validate all 1,407 entries
+### A.1 Schema-validate all 1,415 entries
 
 ```bash
 python3 - <<'PY'
@@ -130,7 +139,7 @@ print(f"validated {len(files) - bad}/{len(files)} entries against schema v0.0.5"
 PY
 ```
 
-Expected: `validated 1407/1407 entries against schema v0.0.5`. This
+Expected: `validated 1415/1415 entries against schema v0.0.5`. This
 proves the artifact conforms to the contract in
 [`../../schema/entry.schema.json`](../../schema/entry.schema.json).
 
@@ -157,11 +166,11 @@ PY
 Expected output:
 
 ```
-C1  total reproduced entries : 1407
-    schema versions          : {'0.0.5': 1407}
-C2  category split           : {'non-breaking': 1321, 'breaking': 86}
-    breaking rate            : 86/1407 = 6.1%
-C3  versionUpdateType split  : {'patch': 1218, 'minor': 168, 'major': 20, 'other': 1}
+C1  total reproduced entries : 1415
+    schema versions          : {'0.0.5': 1415}
+C2  category split           : {'non-breaking': 1329, 'breaking': 86}
+    breaking rate            : 86/1415 = 6.1%
+C3  versionUpdateType split  : {'patch': 1224, 'minor': 170, 'major': 20, 'other': 1}
 ```
 
 **What this establishes.** Every reproduced PR carries an explicit
@@ -301,7 +310,8 @@ parameters that reproduce `ds1-full-crack-r2` specifically:
   the `1.30.0-stretch-20181231` image (96 candidates, all
   non-reproducible, hence no entries). All are rebuildable from
   [`../../docker/cargo-fat/index.json`](../../docker/cargo-fat/index.json).
-- **Then** the OpenSSL-stretch sub-cohort (§6) to reach the merged 1,407.
+- **Then** the OpenSSL-stretch (+48, §6) and native-dep (+8) recovery
+  sub-cohorts to reach the merged 1,415.
 
 Expect ~4 days wall-clock at `--parallel 5` on a 16-core/32 GiB host.
 Reproducing to the *exact* entry set is not guaranteed — a handful of
@@ -328,8 +338,10 @@ the published entry artifact. Three ways to obtain it, strongest first:
    availability at mining time, so expect ~2,608 ± a few.
 
 2. **Obtain the run host's database.** `data/pipeline.sqlite` holds a
-   `drive_state` row for all 2,608 candidates with their terminal status.
-   Given that file, the rate is one query:
+   `drive_state` row for all 2,608 candidates under `run_id =
+   'ds1-full-crack-r2'`, plus the two recovery sub-cohorts under their own
+   run_ids (`…-openssl-stretch`, `…-native-deps`, `…-native-deps-followon`).
+   Run B alone (52.1 %):
 
    ```sql
    SELECT
@@ -339,26 +351,33 @@ the published entry artifact. Three ways to obtain it, strongest first:
    FROM drive_state WHERE run_id = 'ds1-full-crack-r2';
    ```
 
-   This DB is git-ignored (it is a rebuildable index, not a source of
-   truth) and is held with the run host's working data. It is the
-   artifact to request if you want to check the rate without a full
-   re-run.
+   The published 54.3 % adds the candidates the sub-cohort runs flipped to
+   `ok` (48 + 8) on top of Run B's numerator — i.e. count distinct
+   candidate_keys that reached `ok`/`ok_after_relock` in *any* of the
+   four run_ids, over the 2,608 denominator. This DB is git-ignored (a
+   rebuildable index, not a source of truth); it is the artifact to
+   request if you want to check the rate without a full re-run.
 
-3. **Trust the numerator, bound the denominator.** The published 1,407
+3. **Trust the numerator, bound the denominator.** The published 1,415
    entries are the verified numerator. If you independently establish the
    denominator is 2,608 (from the Rebatchi DS1 Cargo cohort), the rate
-   follows: 1,407 / 2,608 = 53.9 %, Wilson CI 52.0–55.9 %.
+   follows: 1,415 / 2,608 = 54.3 %, Wilson CI 52.3–56.2 %.
 
 We state plainly: **only path 1 or 2 lets you recompute C5
 independently.** The entries alone do not contain the denominator.
 
 ---
 
-## 6. The OpenSSL-stretch sub-cohort (the +48)
+## 6. The recovery sub-cohorts (+48 OpenSSL, +8 native-dep)
 
-The published cohort merges Run B (1,359 entries) with a 48-entry
-sub-cohort, reaching 1,407. The sub-cohort is the project's worked
-example of *image-substitution recovery*:
+The published cohort merges Run B (1,359 entries) with two
+image-substitution recovery sub-cohorts: OpenSSL-stretch (+48) and
+native-dep (+8), reaching 1,415. Both are worked examples of the same
+move — diagnose an *environment-caused* failure, substitute a corrected
+environment, re-run under a distinct `run_id`, merge the recovered
+entries as a measured delta.
+
+### 6a. OpenSSL-stretch (+48)
 
 - **Problem.** Crates using `openssl-sys` < 0.9.x link against libssl
   1.0.x. The era-floor bucketer routes 2018–2020 candidates to
@@ -372,12 +391,26 @@ example of *image-substitution recovery*:
   into the published branch.
 
 This is run, recorded, and merged transparently — not folded silently
-into Run B's number. A verifier who wants the strict single-image-policy
-result should use Run B's 52.1 %; the published artifact's 53.9 %
-includes this documented recovery. The full method, the 48/64 recovery,
-and the DB-verified classifier-precision finding it surfaced (14 of the
-64 were really `TEST_FAILURE`, not OpenSSL) are written up in
+into Run B's number. The full method, the 48/64 recovery, and the
+DB-verified classifier-precision finding it surfaced (14 of the 64 were
+really `TEST_FAILURE`, not OpenSSL) are written up in
 [`../findings/openssl-case-study.md`](../findings/openssl-case-study.md).
+
+### 6b. native-dep (+8)
+
+`NATIVE_DEP_MISSING` candidates whose fat image was missing a system
+`-dev` package. The 12 "missing-package" cases (`cannot find -lLIB`) sat
+on stale 1.39 stretch/buster images built before the round-2 native-dep
+apt layer; rebuilding those images (+ adding libsfml/libcsfml/SDL2
+companion packages) recovered **8**. The 6 "undefined-reference" cases
+(libgcrypt/CPython ABI) did *not* recover — confirming the
+missing-package vs ABI split. Full write-up, including the
+provisioning-vs-runtime floor the experiment found, in
+[`../findings/native-dep-case-study.md`](../findings/native-dep-case-study.md).
+
+A verifier who wants the strict single-image-policy result should use Run
+B's 52.1 %; the published artifact's **54.3 %** includes both documented
+recoveries.
 
 ---
 
@@ -387,7 +420,7 @@ Stated honestly, because a defense should pre-empt the question:
 
 **Establishes:**
 
-- 1,407 real-world Cargo dependency-update PRs reproduce under a pinned
+- 1,415 real-world Cargo dependency-update PRs reproduce under a pinned
   environment (rustc + Debian release + apt snapshot), each with a
   rebuildable fingerprint (Track A + B).
 - Of reproducible updates, 6.1 % are build-breaking (Track A).
@@ -406,9 +439,11 @@ Stated honestly, because a defense should pre-empt the question:
   future work; BUMP performs both.
 - **Classifier precision beyond the audited samples.** The failure
   taxonomy was audited at ~80–95 % precision on samples (see findings
-  doc); only the `OPENSSL_MISMATCH` class has a full-cohort
-  ground-truth check (the §6 sub-cohort). Category *counts* are upper
-  bounds, not exact.
+  doc); two classes have full-cohort ground-truth checks via the §6
+  recovery runs — `OPENSSL_MISMATCH` (the +48 study) and
+  `NATIVE_DEP_MISSING` (the +8 study, which also split the class into
+  missing-package vs ABI). Category *counts* elsewhere are upper bounds,
+  not exact.
 
 ---
 
@@ -416,7 +451,7 @@ Stated honestly, because a defense should pre-empt the question:
 
 - **Verified branch:** `ds1-full-crack-r2`,
   [`lyuben-todorov/dep-updates-rp-data`](https://github.com/lyuben-todorov/dep-updates-rp-data/tree/ds1-full-crack-r2),
-  1,407 entries, schema v0.0.5.
+  1,415 entries, schema v0.0.5.
 - **Run findings (authoritative numbers):**
   [`../findings/ds1-full-r2-findings.md`](../findings/ds1-full-r2-findings.md)
   — Run B headline, per-category deltas, per-year rates, audit results.
@@ -430,5 +465,5 @@ Stated honestly, because a defense should pre-empt the question:
 - **Image selection logic:** [`image-selection.md`](image-selection.md).
 - **Full re-run runbook:** [`running-a-batch.md`](running-a-batch.md).
 
-All numbers in §0–§3 were recomputed directly from the 1,407 published
+All numbers in §0–§3 were recomputed directly from the 1,415 published
 entries; the commands above regenerate them.

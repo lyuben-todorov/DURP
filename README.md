@@ -136,7 +136,7 @@ For the full end-to-end workflow (planning → fat-image builds →
 batch drive → verification), see
 [`docs/cargo/running-a-batch.md`](docs/cargo/running-a-batch.md).
 
-**To verify the published results** (the 1,407-entry `ds1-full-crack-r2`
+**To verify the published results** (the 1,415-entry `ds1-full-crack-r2`
 cohort) rather than re-run the study, see
 [`docs/cargo/reproduction-runbook.md`](docs/cargo/reproduction-runbook.md)
 — a layered runbook for an external verifier, from a 10-minute
@@ -180,9 +180,12 @@ DS1-full run completed 2026-05-12: 2608 candidates processed,
 **1210 reproducible (46.4 %)**, 1395 not_reproducible, 3
 regenerate_mismatch. See [`docs/findings/ds1-full-findings.md`](docs/findings/ds1-full-findings.md)
 for the full breakdown, [`docs/findings/ds1-full-r2-findings.md`](docs/findings/ds1-full-r2-findings.md)
-for the round-2 rerun (52.1 %, the current headline base), and
+for the round-2 rerun (52.1 %, the headline base), and
 `schema/failure-taxonomy.md` for the reproduction-failure taxonomy
-(Scheme 2).
+(Scheme 2). The **published `ds1-full-crack-r2` artifact is 1,415
+entries / 54.3 %** — Run B plus the OpenSSL-stretch (+48) and native-dep
+(+8) image-substitution recovery sub-cohorts
+([`docs/findings/`](docs/findings/) has both case studies).
 
 Earlier milestones: v0.0.4 introduced the category-neutral schema +
 fat-image internals refactor + SQLite index layer.

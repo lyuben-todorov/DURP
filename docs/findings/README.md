@@ -14,7 +14,8 @@ repository so an examiner can trace every claim to its source.
 | [`native-dep-case-study.md`](native-dep-case-study.md) | A second image-substitution study over the 18 `NATIVE_DEP_MISSING` candidates: rebuilding stale fat images recovers 7 (all "missing-package"), confirms 0/6 "undefined-reference" (ABI) cases recover, and motivates splitting the taxonomy class. |
 | [`live-mine-rq3-prep.md`](live-mine-rq3-prep.md) | Drive-prep for the 5,401-candidate 2024–2025 cohort (RQ3): cohort profile, the 5 fat images a drive must build, and falsifiable pre-registered predictions. Read-only; nothing driven yet. |
 
-The merged published artifact (`ds1-full-crack-r2` branch, 1,407
-entries, 53.9 %) is Run B plus the OpenSSL-stretch sub-cohort; see
+The merged published artifact (`ds1-full-crack-r2` branch, 1,415
+entries, 54.3 %) is Run B (1,359 / 52.1 %) plus two image-substitution
+recovery sub-cohorts — OpenSSL-stretch (+48) and native-dep (+8); see
 [`../cargo/reproduction-runbook.md`](../cargo/reproduction-runbook.md)
 §6 for that distinction.
