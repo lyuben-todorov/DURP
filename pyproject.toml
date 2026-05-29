@@ -9,6 +9,13 @@ dependencies = [
     "requests>=2.31",
 ]
 
+# The `durp` CLI. Resolves under an editable install (`pip install -e .`),
+# which puts the repo root on sys.path so `durp`, `pipelines.cargo.*`, and
+# `scripts.*` all import. A non-editable wheel would additionally need
+# pipelines/scripts packaged as real packages — tracked as future work.
+[project.scripts]
+durp = "durp.__main__:main"
+
 [project.optional-dependencies]
 # The Cargo pipeline's runtime needs (requests, etc.) are already in the
 # core dependencies — it talks to the GitHub REST API via `requests`, not
@@ -26,7 +33,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["lib/bump_ext"]
+packages = ["lib/bump_ext", "durp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

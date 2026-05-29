@@ -1,0 +1,23 @@
+# durp configuration — copy to `durp.toml` at the repo root and edit.
+#
+# All keys are optional; durp falls back to the conventional repo layout
+# when a key (or the whole file) is absent. Explicit CLI flags always
+# override these. GITHUB_TOKEN is read from the environment or a .env file
+# at the repo root (auto-loaded) — do NOT put secrets here.
+
+# Default --host label recorded in reproduction / verify records.
+host = "my-machine"
+
+# Default upper bound on commit dates for image selection (YYYY-MM-DD).
+# Keep stable across a cohort so fat-image tags stay deterministic.
+max_sde_date = "2023-12-31"
+
+[paths]
+# All paths are relative to the repo root unless absolute.
+data_dir          = "data"
+cargo_entries_dir = "data/cargo"            # the data submodule (Layer 1)
+logs_dir          = "data/cargo-logs"
+rebatchi_dir      = "data/rebatchi"
+live_mine_dir     = "data/live-mine"
+db                = "data/pipeline.sqlite"
+fat_index         = "docker/cargo-fat/index.json"

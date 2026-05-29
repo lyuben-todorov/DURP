@@ -115,22 +115,42 @@ CHANGELOG.md
 git clone --recurse-submodules https://github.com/lyuben-todorov/DURP.git && cd DURP
 # If you already cloned: git submodule update --init
 
-# 2. Install the shared library (editable, with Cargo extras).
+# 2. Install (editable) — registers the `durp` CLI.
 pip install -e '.[cargo]'
 
-# 3. Set a GitHub token (for candidate enrichment + commit-date lookups).
-export GITHUB_TOKEN=<your_pat>
+# 3. Token: put GITHUB_TOKEN=<your_pat> in a .env at the repo root.
+#    durp auto-loads it — no `set -a; . .env` needed. (Or export it.)
+echo 'GITHUB_TOKEN=<your_pat>' > .env
 
-# 4. Run a small batch end-to-end against the bundled test slice.
-python3 -m pipelines.cargo.cargo_drive \
+# 4. (Optional) cp durp.toml.example durp.toml and set host / paths.
+
+# 5. Verify a published reproduction in one command:
+durp verify data/cargo/cargo-001c45ac.json
+
+# Or drive a small batch end-to-end against the bundled test slice:
+durp reproduce \
   --candidates data/rebatchi/ds1_candidates_enriched_500.jsonl \
-  --out-dir /tmp/drive-out \
-  --logs-dir /tmp/drive-logs \
-  --state /tmp/drive-state.jsonl \
-  --build-missing-bases \
-  --limit 5 \
-  --host $(hostname)
+  --build-missing-bases --limit 5
 ```
+
+### The `durp` CLI
+
+A single entrypoint over the pipeline (`durp <verb> --help` shows each
+underlying tool's full flag set):
+
+| Command | Does |
+| --- | --- |
+| `durp verify <entry.json>` | rebuild the fat image + re-verify one entry's fingerprint |
+| `durp reproduce --candidates X.jsonl` | drive a cohort end-to-end (the main pipeline) |
+| `durp mine <owner/repo>` | mine dependency-update PRs from one repo |
+| `durp plan --candidates X.jsonl` | show which fat images a cohort needs (read-only) |
+| `durp index rebuild` / `verify` | rebuild / drift-check the SQLite index |
+| `durp fat-image <list\|resolve\|build\|…>` | fat-image registry management |
+| `durp dev <live-search\|rebatchi\|…>` | ingestion + cohort tooling |
+
+durp injects defaults from `durp.toml` + `.env` for flags you omit and
+forwards everything else through, so it's a thin layer over the same
+modules (`python -m pipelines.cargo.cargo_drive …` still works directly).
 
 For the full end-to-end workflow (planning → fat-image builds →
 batch drive → verification), see
