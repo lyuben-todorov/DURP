@@ -112,7 +112,7 @@ CHANGELOG.md
 
 ```bash
 # 1. Clone with submodules (data/cargo/ is a submodule).
-git clone --recurse-submodules <repo-url> && cd dep-updates-poc
+git clone --recurse-submodules https://github.com/lyuben-todorov/DURP.git && cd DURP
 # If you already cloned: git submodule update --init
 
 # 2. Install the shared library (editable, with Cargo extras).
@@ -136,6 +136,13 @@ For the full end-to-end workflow (planning → fat-image builds →
 batch drive → verification), see
 [`docs/cargo/running-a-batch.md`](docs/cargo/running-a-batch.md).
 
+**To verify the published results** (the 1,407-entry `ds1-full-crack-r2`
+cohort) rather than re-run the study, see
+[`docs/cargo/reproduction-runbook.md`](docs/cargo/reproduction-runbook.md)
+— a layered runbook for an external verifier, from a 10-minute
+schema-and-counts check to rebuilding a fat image and re-verifying a
+single reproduction's fingerprint.
+
 ## Proof it works
 
 Two real v0.0.5 entries live in the `data/cargo/` submodule
@@ -155,7 +162,7 @@ Two real v0.0.5 entries live in the `data/cargo/` submodule
 | --- | --- |
 | Environment fingerprint over OCI digest | [`docs/cargo/reproducible-builds.md`](docs/cargo/reproducible-builds.md) |
 | Fat image covers ~93% of Cargo *-sys crates | [`docs/cargo/survey-findings.md`](docs/cargo/survey-findings.md) |
-| Dataset 1 over Dataset 2 for the paper corpus | [`../docs/rebatchi.md`](../docs/rebatchi.md) |
+| Dataset 1 over Dataset 2 for the paper corpus | [`docs/findings/rebatchi.md`](docs/findings/rebatchi.md) |
 | Canonical fat-image tags (`<rust>-<debian>-<yyyymmdd>`) | `pipelines/cargo/fat_image.py` |
 | `pre` / `post` / `fix` commit naming (not `preBreaking`/`breaking`) | `CHANGELOG.md` v0.0.4 |
 
@@ -171,9 +178,11 @@ apt snapshot, same SDE, same rust) is arch-agnostic.
 
 DS1-full run completed 2026-05-12: 2608 candidates processed,
 **1210 reproducible (46.4 %)**, 1395 not_reproducible, 3
-regenerate_mismatch. See `../docs/ds1-full-findings.md` for the full
-breakdown and `schema/failure-taxonomy.md` for the
-reproduction-failure taxonomy (Scheme 2).
+regenerate_mismatch. See [`docs/findings/ds1-full-findings.md`](docs/findings/ds1-full-findings.md)
+for the full breakdown, [`docs/findings/ds1-full-r2-findings.md`](docs/findings/ds1-full-r2-findings.md)
+for the round-2 rerun (52.1 %, the current headline base), and
+`schema/failure-taxonomy.md` for the reproduction-failure taxonomy
+(Scheme 2).
 
 Earlier milestones: v0.0.4 introduced the category-neutral schema +
 fat-image internals refactor + SQLite index layer.

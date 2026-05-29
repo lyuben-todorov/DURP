@@ -28,7 +28,7 @@ df -h ~                                         # check available disk
 ## Step 1 — Clone + install
 
 ```bash
-git clone --recurse-submodules <repo-url> rp2026 && cd rp2026/dep-updates-poc
+git clone --recurse-submodules https://github.com/lyuben-todorov/DURP.git && cd DURP
 pip install -e '.[cargo]'
 ```
 
@@ -79,7 +79,7 @@ Only needed if you want a fresh enrichment (e.g., to pick up new
 
 ```bash
 # 1. Download DS1 (from Rebatchi's Zenodo drop, ~3.7 GB)
-#    See ../../../docs/rebatchi.md for the URL + filter recipe.
+#    See ../findings/rebatchi.md for the URL + filter recipe.
 
 # 2. Filter to candidates (streams the rar archives, keeps plausible
 #    Cargo PRs)
