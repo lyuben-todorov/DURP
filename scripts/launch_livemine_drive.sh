@@ -28,6 +28,10 @@ PARALLEL="${PARALLEL:-8}"
 RUN_ID="${RUN_ID:-livemine-2024-2025-crack}"
 MAX_SDE="${MAX_SDE:-2025-12-31}"
 SEED="${SEED:-1337}"
+# buildx builder name. crack's docker-container builder is 'rp2026';
+# fat_image.py defaults to 'desktop-linux' (Docker Desktop), which does
+# not exist on the Linux run host. Override here.
+BUILDER="${BUILDER:-rp2026}"
 
 SRC="data/live-mine/candidates_enriched.jsonl"
 STRAT="data/live-mine/candidates_stratified.jsonl"
@@ -56,25 +60,40 @@ if [ ! -f "$STRAT" ] || [ "$SRC" -nt "$STRAT" ]; then
     || { echo "stratify failed" | tee -a "$LOG"; exit 1; }
 fi
 
-# 2. Build the 5 fat images the cohort needs, if absent. The planner prints
-#    exact build commands; we let the driver's preflight tell us what's
-#    missing rather than hardcode. Build via cargo_plan_fat_images first
-#    so a verifier sees the plan, then build_missing on the driver is OFF
-#    (we want bases pre-built for --parallel > 1).
+# 2. Build the fat images the cohort needs, if absent. We build them
+#    SERIALLY here (one fat_image build at a time), which is exactly why
+#    the parallel drive below can leave --build-missing-bases OFF: the
+#    index-write race only happens when N parallel drive workers each try
+#    to build+register. Building up-front, serially, avoids it entirely.
+#
+#    The planner prints one build command per missing image; we extract
+#    those lines and run each, skipping any image already registered.
 echo "[plan] fat images for the cohort:" | tee -a "$LOG"
-.venv/bin/python3 -m pipelines.cargo.cargo_plan_fat_images \
-  --candidates "$STRAT" --max-sde-date "$MAX_SDE" 2>&1 | tee -a "$LOG"
+PLAN="$(.venv/bin/python3 -m pipelines.cargo.cargo_plan_fat_images \
+          --candidates "$STRAT" --max-sde-date "$MAX_SDE" 2>&1)"
+echo "$PLAN" | tee -a "$LOG"
 
-echo "" | tee -a "$LOG"
-echo "NOTE: build any images the plan lists as 'new builds' before driving" | tee -a "$LOG"
-echo "      with --parallel > 1 (index-write race forbids --build-missing-bases)." | tee -a "$LOG"
-echo "      Build commands are printed above. Re-run this script after building." | tee -a "$LOG"
+# Pull out the 'python3 -m pipelines.cargo.fat_image build ...' lines.
+mapfile -t BUILD_CMDS < <(echo "$PLAN" | grep -E 'fat_image build')
+if [ "${#BUILD_CMDS[@]}" -gt 0 ]; then
+  echo "[build] ${#BUILD_CMDS[@]} fat image(s) to build serially before driving" | tee -a "$LOG"
+  for cmd in "${BUILD_CMDS[@]}"; do
+    # Strip leading whitespace from the planner's indented output, then
+    # run 'python3 ...' under the venv interpreter.
+    cmd="${cmd#"${cmd%%[![:space:]]*}"}"        # ltrim
+    runcmd=".venv/bin/${cmd} --builder ${BUILDER}"   # .venv/bin/python3 -m ... --builder rp2026
+    echo "[build] $runcmd" | tee -a "$LOG"
+    eval "$runcmd" >>"$LOG" 2>&1 \
+      || { echo "[build] FAILED: $runcmd — aborting before drive" | tee -a "$LOG"; exit 1; }
+  done
+  echo "[build] all images built + registered" | tee -a "$LOG"
+else
+  echo "[build] no new images needed (all in index)" | tee -a "$LOG"
+fi
 
 # 3. The actual drive. nohup so it survives disconnects; --parallel from env.
-#    The driver runs its own preflight (image-presence check) at startup and
-#    exits non-zero listing any missing image — that is the signal to build
-#    the images the plan printed above, then re-run this script. We do NOT
-#    pass --build-missing-bases (incompatible with --parallel > 1).
+#    Bases are now pre-built (step 2), so --build-missing-bases stays OFF
+#    and the driver's preflight should pass.
 echo "[drive] batch=$BATCH parallel=$PARALLEL run_id=$RUN_ID" | tee -a "$LOG"
 nohup .venv/bin/python3 -m pipelines.cargo.cargo_drive \
   --candidates "$STRAT" \
