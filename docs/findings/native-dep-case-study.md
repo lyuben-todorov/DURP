@@ -131,8 +131,10 @@ came from the missing-package mechanism; the linker error cleared in
    methodological (the missing-package vs ABI split, and the
    provisioning-vs-runtime floor) and compounding (native-dep recovery
    stacks with the OpenSSL +48 and any future sub-cohort). It is a
-   *delta study*, not a correction to the 53.9 % — like OpenSSL, the
-   decision to merge these 8 into the published branch is separate.
+   *delta study* layered on Run B's 52.1 %. Like OpenSSL, these 8 were
+   run under their own `run_id` and then merged into the published
+   `ds1-full-crack-r2` branch: 1,407 → **1,415**, taking the published
+   rate 53.9 % → **54.3 %**.
 
 ## Provenance
 
