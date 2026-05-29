@@ -15,9 +15,13 @@ BUMP). Current state: schema v0.0.5, Fork B reproducibility model
 3. A **shared Python library (`bump_ext`)** with Pydantic models, JSON
    Schema validation, and an entry writer.
 4. A **Cargo pipeline** exercising the shared contracts end-to-end:
-   candidate generation (Rebatchi DS1 or live GitHub) → fat-image
-   resolution → reproduction → classification → assembly → optional
-   regenerate-verify.
+   candidate generation → fat-image resolution → reproduction →
+   classification → assembly → optional regenerate-verify. Candidates
+   come from two cohorts: the **historical** 2018–2021 set (Rebatchi DS1,
+   via `rebatchi_ds1_filter.py` → `rebatchi_to_candidate.py`) and the
+   **recent** 2024–2025 set (live-mined from GitHub, via the
+   `scripts/cargo_live_*` + `launch_live_mine.sh` pipeline). Both feed
+   the same enrichment + driver path.
 5. A **fat-image toolkit** — index, resolver, deterministic canonical
    tags, build CLI — so the reproducibility story is "rebuild locally
    and verify fingerprint", not "pull a published image."
@@ -65,9 +69,16 @@ pipelines/
     cargo_plan_fat_images.py batch planner, read-only
     fat_image.py            fat-image index + canonical bucketing + build CLI
 scripts/
+  rebatchi_ds1_filter.py    rar-stream pre-filter for DS1 (historical cohort)
+  rebatchi_to_candidate.py  Rebatchi/live row → candidate JSONL (enrichment, shared)
+  cargo_live_search.py      live-mine Stage 1 — GitHub Search API (recent cohort)
+  cargo_live_sample.py      live-mine Stage 1.5 — stratified monthly sample
+  launch_live_mine.sh       live-mine orchestrator (Stage 1 → 1.5 → 3)
+  rebuild_index.py          rebuild pipeline.sqlite from canonical JSONs
+  verify_index.py           CI drift check: on-disk JSONs vs SQLite index
   cargo_survey_sys_deps.py  Cargo *-sys coverage survey (one-off analysis)
-  rebatchi_to_candidate.py  Rebatchi CSV/JSONL row → candidate JSONL
-  rebatchi_ds1_filter.py    rar-stream pre-filter for DS1
+  rebatchi_ds1_count.py     DS1 upstream-universe size verifier (one-off)
+  rustsec_crossings.py      RustSec advisory cross-reference (one-off analysis)
 docker/
   cargo-fat/
     Dockerfile              parameterised on RUST_VERSION, DEBIAN_RELEASE, SOURCE_DATE_EPOCH, INCLUDE_GUI
@@ -161,8 +172,8 @@ apt snapshot, same SDE, same rust) is arch-agnostic.
 DS1-full run completed 2026-05-12: 2608 candidates processed,
 **1210 reproducible (46.4 %)**, 1395 not_reproducible, 3
 regenerate_mismatch. See `../docs/ds1-full-findings.md` for the full
-breakdown and `schema/failure-taxonomy.md` for the 12-category
-reproduction-failure taxonomy.
+breakdown and `schema/failure-taxonomy.md` for the
+reproduction-failure taxonomy (Scheme 2).
 
 Earlier milestones: v0.0.4 introduced the category-neutral schema +
 fat-image internals refactor + SQLite index layer.
@@ -170,6 +181,8 @@ Layer 1 extracted to its own repo (`dep-updates-rp-data`, wired in
 as a submodule at `data/cargo/`). `PipelineDB` / `rebuild_index.py` /
 `verify_index.py` shipped; `cargo_drive` has optional `--db` mirror.
 
-Next milestones: dissect the 12 failure categories one by one for
-recoverable wins, then ingest the live 2024-2025 mine for RQ3's
-recent comparison cohort.
+Next milestones: dissect the failure categories one by one for
+recoverable wins, and ingest the live 2024-2025 mine (pipeline in
+`scripts/cargo_live_*`; see
+[`docs/cargo/running-a-batch.md`](docs/cargo/running-a-batch.md) §3
+Option C) for RQ3's recent comparison cohort.

@@ -8,10 +8,12 @@ wrong," but they classify different populations of logs:
    BUMP-shared top-level scheme. Per-entry field
    `failureClassification`. Implemented in
    `pipelines/cargo/cargo_classifier.py`. Shared across ecosystems.
-2. **Reproduction-failure reclassifier** (section below) —
-   post-hoc, reads the *pre* logs of candidates whose pre-build
-   failed (`not_reproducible`). Implemented in
-   `scripts/reclassify_failures.py`. Cargo-specific. Populates the
+2. **Reproduction-failure classifier** (section below) — reads the
+   *pre* logs of candidates whose pre-build failed
+   (`not_reproducible`). Implemented in
+   `pipelines/cargo/cargo_failure_classifier.py`, wired into the driver
+   (runs inline during a batch; re-runnable post-hoc via `cargo_drive
+   --reclassify`). Cargo-specific. Populates the
    `drive_state_classifications` table, not an entry-JSON field.
 
 A candidate's outcome puts it into exactly one of these populations:
@@ -81,7 +83,8 @@ schema bump (major version) and team consensus.
 
 ## Scheme 2 — Reproduction-failure reclassifier (Cargo)
 
-Run after a batch via `scripts/reclassify_failures.py`. Reads the
+Runs inline during a batch (and re-runnable post-hoc via `cargo_drive
+--reclassify`). Reads the
 pre-commit log of every `not_reproducible` drive-state row, prioritises
 the *terminal* error (the last substantive `error:` line, skipping
 generic `error: build failed` and `could not compile X due to N
@@ -139,7 +142,7 @@ The two schemes therefore have different jobs:
 ### Re-classifying a run
 
 ```sh
-python3 scripts/reclassify_failures.py \
+python3 -m pipelines.cargo.cargo_drive --reclassify \
   --db data/pipeline.sqlite \
   --run-id ds1-full-crack \
   --logs-dir data/cargo-logs \
