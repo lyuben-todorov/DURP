@@ -34,11 +34,11 @@ PROBABLE, not CONFIRMED.
 | OTHER | 13 | 1.0 % | fall-through | — |
 | MSRV_TOO_LOW | 9 | 0.7 % | genuine (declared MSRV exceeds floor) | — |
 
-The five largest classes (1,017 = 81 % of failures) are analysed below.
-The smaller classes are covered in
-[`ds1-full-r2-findings.md`](ds1-full-r2-findings.md),
-[`openssl-case-study.md`](openssl-case-study.md), and
-[`native-dep-case-study.md`](native-dep-case-study.md).
+The five largest classes (1,017 = 81 % of failures) are analysed in
+depth below. The other seven (232) are covered too — five by existing
+work, and the two that were *not* previously examined (OTHER,
+MSRV_TOO_LOW) are characterized in "The other seven classes" section at
+the end. No class is left as an unexamined black box.
 
 ## The bottom line
 
@@ -277,6 +277,60 @@ Cargo's resolver failed to produce a build plan.
 
 ---
 
+## The other seven classes (232 candidates)
+
+The five above are 81 % of failures. The remaining seven, for
+completeness — five already have dedicated treatment, two did not and are
+characterized here:
+
+**Already examined (prior work):**
+
+- **OPENSSL_MISMATCH (64)** — image substitution recovers 48/64.
+  [`openssl-case-study.md`](openssl-case-study.md).
+- **NATIVE_DEP_MISSING (18)** — rebuilt fat images recover 7; the
+  remainder are `-ldl`/undefined-reference ABI cases.
+  [`native-dep-case-study.md`](native-dep-case-study.md).
+- **REPO_GONE (28)** — audited in
+  [`ds1-full-r2-findings.md`](ds1-full-r2-findings.md): 27/28 are
+  manifest-at-depth-3-5 (the discovery shim caps at depth 2), recoverable
+  by raising the cap; zero are real tombstones.
+- **TIMEOUT (69)** — heavy workspaces (solana ×N, starcoin, servo, comit);
+  the +44 vs baseline is a `--parallel 8` disk-contention artifact.
+  Recoverable by `--parallel 5` + a larger `--timeout`.
+- **LOCK_FILE_STALE (31)** — `--relax-locked` recovers some; the rest hit
+  a post-regeneration MSRV wall (the relock pulls an edition-2021 dep).
+
+**Not previously examined — characterized now:**
+
+- **OTHER (13) — NOT an opaque fall-through (the earlier draft was
+  wrong).** It is three concrete sub-causes: (a) `rustfmt`/`clippy` not
+  installed for a pinned sub-toolchain (5×, all
+  `tmtmtoo/rust-grpc-server-example`, which pins `1.43.0` and runs
+  `cargo fmt` at build); (b) `File too big` extracting a nightly rustc
+  component (4× — a disk-pressure pipeline artifact); (c) transients
+  (checksum verify, crate download, workspace-manifest parse). A
+  2-candidate retry on a current image did **not** recover them (the
+  rustfmt one got past rustfmt and hit a deeper `tonic-build` issue; the
+  transient hit a manifest-parse on the substituted image), so they are
+  *not* trivially fixable — but they are pipeline/tooling-flavoured, not
+  corpus rot. Best read: mostly pipeline-side, low individual yield.
+- **MSRV_TOO_LOW (9) — corpus/contract, possibly route-up-fixable.** All
+  nine declare MSRV 1.56 and route to `1.56-buster`, then fail because
+  the *bumped dependency* raised the effective MSRV past 1.56 (`rustix
+  0.38`, `libc 0.2.186`, `itoa 1.0`, `tempfile 3.8` — all edition-2021).
+  Eight of nine are `paritytech/parity-bridges-common`, so ~2 distinct
+  root causes. Untested hypothesis: routing *up* to 1.65/1.75 would build
+  them — the mirror image of the era-floor problem. Not rebuilt (no local
+  1.65 image); flagged as a cheap follow-up.
+
+Net for the seven: OPENSSL (+48) and NATIVE_DEP (+7) are the confirmed
+recoveries; REPO_GONE (+27 via depth-shim) and TIMEOUT (+~40 via
+parallel/timeout) are high-confidence-pending; LOCK_FILE_STALE, OTHER,
+MSRV_TOO_LOW are small and mostly contract/corpus with a thin
+pipeline-fixable margin.
+
+---
+
 ## What this means for the thesis / defense
 
 1. **The reproducibility ceiling is bounded and explainable.** ~600+ of
@@ -326,7 +380,14 @@ re-ran the pre/post `cargo test`.
 is the evidence behind the "code-dependent, not signature-wide"
 conclusion. Caveat: arm64 (crack is amd64); but the failing error codes
 matched crack's amd64 record exactly, so the arch did not change the
-verdict. E0512/E0793 were not in this sample and remain un-rebuilt.
+verdict.
+
+This BITROT probe was later extended to **every** recovery lever (E0512,
+E0793, nightly, nasm, llvm, relax-locked, transients, OTHER) — the full
+9-bucket matrix and verdicts are in
+[`recovery-experiments.md`](recovery-experiments.md). Headline: nasm
+build-tool augmentation and E0308 prior-milestone are the only confirmed
+recoveries; E0512/E0793 do *not* recover at 1.49.
 
 ## Provenance
 
