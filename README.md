@@ -27,7 +27,11 @@ BUMP). Current state: schema v0.0.5, Fork B reproducibility model
    and verify fingerprint", not "pull a published image."
 
 Other ecosystem owners (Maven, pip, npm) write their own pipeline against
-the same schema + library. RQ1 / RQ2 consume the combined corpus.
+the same schema + library. RQ1 / RQ2 consume the combined corpus. The seam
+that makes this concrete — and evidence that the schema/taxonomy/contract
+are already ecosystem-agnostic — is specified in
+[`docs/ecosystem-plugin-interface.md`](docs/ecosystem-plugin-interface.md)
+(design; Cargo is the reference implementation).
 
 ## Reproducibility model (Fork B)
 

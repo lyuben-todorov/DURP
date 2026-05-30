@@ -60,6 +60,9 @@ build or the breaking/non-breaking outcome. The default full verify does.
 - `docs/cargo/image-selection.md` — how (msrv, commit_date, debian) → fat-image tag.
 - `schema/failure-taxonomy.md` — the failure classes.
 - `docs/findings/` — run reports + the recovery case studies (OpenSSL, native-dep).
+- `docs/ecosystem-plugin-interface.md` — the polyglot seam (design): how
+  Maven/pip/npm would plug in against the shared schema; Cargo is the
+  reference impl. Read this before any "make it multi-ecosystem" work.
 
 ## Conventions
 
