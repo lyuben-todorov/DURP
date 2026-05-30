@@ -430,7 +430,7 @@ def _regenerate_or_flag_stale(
     rc = _regenerate.regenerate(
         entry_path,
         build_missing_bases=False,
-        skip_tests=False,
+        images_only=False,
         host_label=host_label or socket.gethostname(),
         timeout_s=timeout_s,
         builder=builder,
@@ -782,7 +782,7 @@ def process(candidate: dict, *, out_dir: Path, logs_dir: Path,
     if regenerate_verify:
         print(f"[{key}] regenerate-verify...", file=sys.stderr)
         rc = _regenerate.regenerate(
-            Path(out), build_missing_bases=False, skip_tests=False,
+            Path(out), build_missing_bases=False, images_only=False,
             host_label=host_label, timeout_s=timeout_s, builder="desktop-linux",
         )
         if rc != _regenerate.EXIT_OK:

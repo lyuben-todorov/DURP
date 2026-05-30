@@ -293,7 +293,7 @@ def detect_container_platform(tag: str) -> str:
 
 # ---- main flow ---------------------------------------------------------------
 
-def regenerate(entry_path: Path, *, build_missing_bases: bool, skip_tests: bool,
+def regenerate(entry_path: Path, *, build_missing_bases: bool, images_only: bool,
                host_label: str | None, timeout_s: int, builder: str,
                keep_thin_images: bool = False) -> int:
     with entry_path.open() as f:
@@ -434,7 +434,7 @@ def regenerate(entry_path: Path, *, build_missing_bases: bool, skip_tests: bool,
                 print(f"ERROR: {e}", file=sys.stderr)
                 return EXIT_THIN_BUILD_FAILED
 
-        if not skip_tests:
+        if not images_only:
             print("  running pre test...", file=sys.stderr)
             pre_rc = run_tests(pre_tag, timeout_s)
             print(f"  pre exit: {pre_rc}", file=sys.stderr)
@@ -503,8 +503,13 @@ def main() -> int:
     p.add_argument("--entry", required=True, type=Path, help="Path to entry JSON (v0.0.4).")
     p.add_argument("--build-missing-bases", action="store_true",
                    help="If fat image not present locally, build it. Default: fail.")
-    p.add_argument("--skip-tests", action="store_true",
-                   help="Build thin images but don't run cargo test.")
+    p.add_argument("--images-only", "--skip-tests", dest="images_only",
+                   action="store_true",
+                   help="Stop after building the fat + thin images and checking the "
+                        "environment fingerprint. Does NOT compile or run cargo test, "
+                        "so it verifies environment reproducibility only — not that the "
+                        "code builds or that the breaking/non-breaking outcome holds. "
+                        "(--skip-tests is a deprecated alias.)")
     p.add_argument("--host", default=None, help="Host label recorded in verifiedOn (e.g. 'macbook-local').")
     p.add_argument("--timeout", type=int, default=1800, help="Test timeout per image (s).")
     p.add_argument("--builder", default="desktop-linux",
@@ -521,7 +526,7 @@ def main() -> int:
     return regenerate(
         args.entry,
         build_missing_bases=args.build_missing_bases,
-        skip_tests=args.skip_tests,
+        images_only=args.images_only,
         host_label=args.host,
         timeout_s=args.timeout,
         builder=args.builder,

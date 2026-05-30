@@ -253,9 +253,17 @@ Interpreting the exit code:
 
 A `0` appends a `verifiedOn` record to the entry — over time these
 accumulate cross-host verifications, which is itself reproducibility
-evidence. Use `--skip-tests` for a fingerprint-only check (fast: skips
-the `cargo test` rebuild and only proves the environment is
-reproducible, not the build outcome).
+evidence.
+
+`--images-only` is a faster, weaker check: it builds the fat + thin
+images and checks the environment fingerprint, but **does not compile or
+run `cargo test`**. So it proves the *environment* rebuilds to the same
+fingerprint — not that the code compiles, and not that the
+breaking/non-breaking outcome holds. The `verifiedOn` record it writes
+has `outcomeMatch: null` to reflect that. The default (full) verify is
+the one that confirms reproduction; reach for `--images-only` only when
+you specifically want a cheap environment-determinism check. (The old
+flag name `--skip-tests` still works as an alias.)
 
 ### B.3 On a platform-architecture mismatch
 

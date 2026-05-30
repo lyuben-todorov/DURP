@@ -332,12 +332,15 @@ the regenerator:
 ```bash
 for entry in data/cargo/cargo-*.json; do
   python3 -m pipelines.cargo.cargo_regenerate \
-    --entry "$entry" --host $(hostname) --skip-tests
+    --entry "$entry" --host $(hostname) --images-only
 done
 ```
 
-`--skip-tests` runs just the fingerprint check (fast). Drop the flag
-to re-run the full `cargo test` pair (slow, rebuilds thin images).
+`--images-only` builds the images and checks the environment fingerprint
+but does **not** compile or run `cargo test` — it proves the environment
+rebuilds, not that the build outcome holds (fast). Drop the flag to run
+the full `cargo test` pair, which also confirms the breaking/non-breaking
+outcome (slow). (`--skip-tests` is a deprecated alias for `--images-only`.)
 
 Each run appends a `verifiedOn` record to the entry. Over time, the
 entry accumulates cross-host verifications that become the paper's

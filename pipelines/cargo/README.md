@@ -197,9 +197,14 @@ writing.
 ```
 python3 -m pipelines.cargo.cargo_regenerate \
   --entry data/cargo/cargo-<id>.json \
-  [--build-missing-bases] [--skip-tests] [--keep-thin-images] \
+  [--build-missing-bases] [--images-only] [--keep-thin-images] \
   --host $(hostname)
 ```
+
+`--images-only` (deprecated alias: `--skip-tests`) stops after building
+the images and checking the environment fingerprint — it does **not**
+compile or run `cargo test`, so it verifies environment reproducibility
+only, not the build outcome. Omit it for the full pre/post test pair.
 
 `--keep-thin-images` disables the default post-run cleanup. Thin images
 are ~5 GB each; cleanup runs in a `try/finally` so images are removed
