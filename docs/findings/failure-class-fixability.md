@@ -21,7 +21,7 @@ PROBABLE, not CONFIRMED.
 
 | Class | N | % of fails | Verdict | Confidence |
 | --- | ---: | ---: | --- | --- |
-| RUSTC_BITROT | 394 | 31.5 % | ~33 % prior-milestone-recoverable; ~31 % dep-API rot | PROBABLE (not rebuilt) |
+| RUSTC_BITROT | 394 | 31.5 % | ~77 % of coded fail in a locked transitive dep (toolchain-bitrot signature → prior-milestone candidate) | PROBABLE (not rebuilt) |
 | TEST_FAILURE | 244 | 19.5 % | ~0 % fixable; author-environment property | CONFIRMED (log-evidenced) |
 | NIGHTLY_REQUIRED | 169 | 13.5 % | ~62 % recoverable via nightly fat-image | MIXED |
 | RUNTIME_CRASH | 110 | 8.8 % | ~22 % env-augment + ~15 % toolchain; ~63 % native-lib | MIXED |
@@ -45,56 +45,101 @@ The smaller classes are covered in
 Two interventions are **certain** wins; one is **probable**; the two
 largest remaining classes are **provably corpus properties**.
 
+Two interventions are **certain** wins; the largest *probable* pool is
+the prior-milestone retry; the remainder are **provably corpus properties**.
+
 - **Certain — nightly fat-image variant: ~+77** (from NIGHTLY_REQUIRED's
   Rocket/pear cluster, which aborts on stable by design).
 - **Certain — build-tool augmentation: ~+24** (from RUNTIME_CRASH: add
   `nasm`, `meson`, `ninja`, `sass` to the fat image).
-- **Probable — prior-milestone retry: ~+25–40** (from RUSTC_BITROT's
-  NLL/inference/lint-turned-error clusters; needs the rebuild to confirm).
-- **Provably corpus property — ~588 candidates** (TEST_FAILURE 244 +
-  DEPENDENCY_RESOLUTION 86 + RUNTIME_CRASH native-lib 69 +
-  NIGHTLY never-stabilized 62 + BITROT dep-API ~122): no pipeline change
-  recovers these. They are author-environment tests, deleted git refs,
-  missing system libraries, and genuine API/feature drift.
+- **Probable (largest pool) — prior-milestone retry on RUSTC_BITROT:**
+  **250 candidates carry the toolchain-bitrot signature** (the error
+  fires inside a *locked transitive dependency*, not project source).
+  These compiled on their era rustc and break only because the era-floor
+  routed them upward. A conservative 20–40 % rebuild yield ≈ **+50–100** —
+  but this is a hypothesis until the rebuild runs (see the BITROT section).
+- **Provably corpus property — ~500+ candidates** (TEST_FAILURE 244 +
+  DEPENDENCY_RESOLUTION ~92 + RUNTIME_CRASH native-lib 69 + NIGHTLY
+  never-stabilized 62 + BITROT project-source 75): no pipeline change
+  recovers these. Author-environment tests, deleted git refs, missing
+  system libraries, never-stabilized features, and genuine code drift.
 
-Translating to a ceiling: the realistic recoverable headroom from these
-five classes is **~125 certain + up to ~40 probable ≈ 165 candidates**,
-which would lift the DS1 reproducibility rate from 54.3 % toward
-**~60 %** — and the rest is honest corpus attrition. That is the defense
-narrative: we can name, quantify, and partially close the gap, and what
-remains is decay, not pipeline weakness.
+Translating to a ceiling: **~100 certain + a plausible ~50–100 probable**
+recoverable from these five classes would lift DS1 reproducibility from
+54.3 % toward the **low-to-mid 60s %**, with the rest honest corpus
+attrition. The defense narrative: we can name, quantify, and partially
+close the gap, and what remains is decay — not pipeline weakness. **The
+single most valuable next experiment is the prior-milestone retry**,
+because it targets the largest probable pool (250) and would convert the
+biggest PROBABLE into a CONFIRMED number.
 
 ---
 
-## RUSTC_BITROT (394) — PROBABLE ~33 % recoverable
+## RUSTC_BITROT (394) — PROBABLE ~77 % carry a recoverable signature
 
 Code that compiled on the author's contemporary rustc fails on the
 fat-image's (era-floor-selected, usually newer) rustc.
 
-- **Error-code mix:** E0277 (trait bounds) + E0308 (type mismatch)
-  dominate (~67 % of all error occurrences). Then a tail of E0119
-  (conflicting impls — became a hard error in 1.49), NLL-cluster
-  (E0502/E0503/E0506/E0713/E0621), and inference (E0282/E0283).
-- **The fixable cluster (~129, ~33 %):** candidates where the era-floor
-  rounded the rustc UP relative to the commit era (e.g. a 2019 commit
-  routed to 1.49) AND the failure is a lint-turned-error or a
-  tightened-borrow/inference check that an *older* milestone accepted.
-  E0119 is the clean example: a warning in 1.39–1.48, a hard error in
-  1.49+. A 2019 candidate routed to 1.49 that fails E0119 should compile
-  on 1.39.
-- **The corpus cluster (~122, ~31 %):** E0277/E0432/E0599 driven by the
-  bumped *dependency's* API changing (symbol removed/renamed) — no rustc
-  downgrade fixes these.
-- **CONFIDENCE: PROBABLE, NOT CONFIRMED.** This split is from reading
-  ~20 logs and reasoning about when each error code became strict; **no
-  candidate was actually rebuilt on an older milestone.** The +25–40
-  recovery figure is a hypothesis the prior-milestone-retry experiment
-  must test, exactly as the OpenSSL-stretch experiment tested its class.
-- **Example:** `andreasots/eris#571` (2019-11, MSRV 1.39, routed to 1.49)
-  fails E0119 conflicting-impl — a hard error only since 1.49; predicted
-  to compile on 1.39.
-- **Experiment:** retry the ~129 upward-routed candidates on milestone
-  N−1. Predicted yield +25–40.
+### The discriminator: where does the error fire?
+
+A failure inside a **locked transitive dependency** (a crate under
+`cargo-cache/registry/...`, whose version was pinned by the project's
+`Cargo.lock`) is the signature of **toolchain bitrot**: that exact dep
+version compiled on its contemporary rustc and breaks only because the
+era-floor routed the build to a newer one. A failure in the **project's
+own source** is more often genuine code/API drift. We classified all
+~325 coded BITROT candidates by where their *first* error fires:
+
+| | N | reading |
+| --- | ---: | --- |
+| **Error in a transitive registry crate** | **250 (77 %)** | toolchain-bitrot signature → prior-milestone candidate |
+| Error in project source | 75 (23 %) | more likely genuine code/API drift |
+
+This **corrects an earlier draft** that guessed ~33 % fixable / ~31 %
+"dependency-API rot". Reading the logs shows the opposite skew: the
+dominant codes fail inside *pinned old deps*, not the project.
+
+### Per-code split (transitive-registry / project-source)
+
+| Code | Total | Transitive (fixable sig.) | Project src | Nature |
+| --- | ---: | ---: | ---: | --- |
+| E0308 mismatched types | 63 | **61** | 2 | e.g. `lexical-core 0.7.4` `Limb::BITS` usize-vs-u32 (stdlib `BITS` const changed) |
+| E0034 multiple applicable items | 41 | **39** | 2 | inherent-vs-trait method ambiguity tightened |
+| E0283 inference ambiguity | 40 | ~31 | ~9 | inference got stricter |
+| E0119 conflicting impls | 33 | mixed | mixed | warning→hard-error in 1.49 |
+| E0512 transmute size | 21 | **21** | 0 | layout/size assumptions |
+| E0793 misaligned reference | 6 | **6** | 0 | a *recent* lint; era rustc had no such check |
+| E0601 missing `main` | 12 | 0 | **12** | project-source — likely genuine |
+| E0583 missing mod file | 10 | 0 | **10** | project-source — likely genuine |
+| E0433/E0432 unresolved import/path | 29 | 3 | **26** | mostly project-source |
+| E0277 trait bound | 9 | 4 | 5 | mixed |
+| (+ RUNTIME_MEM_UNINIT 12, uncoded 57) | | | | excluded from coded analysis |
+
+The classic anti-bitrot example E0119 (warning until 1.49, hard error
+after) is real but small (33); the *bulk* of the recoverable signature is
+E0308/E0034/E0512 firing in pinned transitive deps.
+
+### Confidence and experiment
+
+- **CONFIDENCE: PROBABLE, NOT CONFIRMED.** "Error fires in a transitive
+  dep" is a strong *signal* of toolchain bitrot, not proof — only the
+  actual rebuild confirms it. **No candidate was rebuilt on an older
+  milestone yet.** This must be validated the way OpenSSL (48/64) and
+  native-dep (7) were: carve the cohort, rerun on the commit-era
+  milestone with a separate `run_id`, re-classify survivors.
+- **Worked example (verified from log):**
+  `conectado/taping-memory-blog#42` — fails E0308 in
+  `lexical-core 0.7.4/src/atof/algorithm/bhcomp.rs:62`
+  (`bits / Limb::BITS`, expected `usize` found `u32`). The project
+  itself is fine; the locked transitive `lexical-core 0.7.4` only breaks
+  on the newer rustc. Routed to `1.56-buster`; predicted to compile on
+  its commit-era milestone.
+- **Experiment:** retry the **250 transitive-signature candidates** on
+  the commit-era milestone (the `latest_milestone_before(commit_date)`
+  one — typically 1–2 milestones below their current fat image, e.g.
+  the `1.56-buster` E0308/E0713/E0793 cluster → retry on 1.49 or 1.39).
+  Predicted yield is genuinely uncertain pre-rebuild; a conservative
+  20–40 % of 250 ≈ **+50–100**, but treat as hypothesis until the run.
 
 ## TEST_FAILURE (244) — CONFIRMED ~0 % fixable (corpus property)
 
@@ -201,14 +246,16 @@ Cargo's resolver failed to produce a build plan.
 
 ## What this means for the thesis / defense
 
-1. **The reproducibility ceiling is bounded and explainable.** ~588 of
+1. **The reproducibility ceiling is bounded and explainable.** ~500+ of
    the 1,249 failures are provably corpus properties (author-env tests,
    deleted git refs, missing system libs, never-stabilized features,
-   dependency API drift). No pipeline closes those.
-2. **The closable gap is real but modest and named:** a nightly variant
-   (~77) and build-tool augmentation (~24) are certain; prior-milestone
-   retry (~25–40) is probable. ~60 % is a defensible practical ceiling
-   for this corpus and contract.
+   project-source code drift). No pipeline closes those.
+2. **The closable gap is real, named, and dominated by one lever:** a
+   nightly variant (~77) and build-tool augmentation (~24) are certain;
+   the big *probable* pool is the **250 toolchain-bitrot-signature
+   candidates** (error fires in a locked transitive dep) addressed by
+   prior-milestone retry, plausibly +50–100. Low-to-mid 60s % is a
+   defensible practical ceiling for this corpus and contract.
 3. **Two tempting "the pipeline is weak" hypotheses are falsified:**
    era-pinned crates.io index (<2 % yield) and later-stable rebuild
    (introduces orthogonal failures). Naming what does *not* help is as
