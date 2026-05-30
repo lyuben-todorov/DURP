@@ -52,26 +52,31 @@ the prior-milestone retry; the remainder are **provably corpus properties**.
   Rocket/pear cluster, which aborts on stable by design).
 - **Certain — build-tool augmentation: ~+24** (from RUNTIME_CRASH: add
   `nasm`, `meson`, `ninja`, `sass` to the fat image).
-- **Probable (largest pool) — prior-milestone retry on RUSTC_BITROT:**
-  **250 candidates carry the toolchain-bitrot signature** (the error
-  fires inside a *locked transitive dependency*, not project source).
-  These compiled on their era rustc and break only because the era-floor
-  routed them upward. A conservative 20–40 % rebuild yield ≈ **+50–100** —
-  but this is a hypothesis until the rebuild runs (see the BITROT section).
-- **Provably corpus property — ~500+ candidates** (TEST_FAILURE 244 +
+- **Prior-milestone retry on RUSTC_BITROT — now partly verified, and
+  narrower than first thought.** Of the 250 transitive-signature
+  candidates, a 10-candidate local rebuild shows recovery is
+  **code-dependent**: the **stdlib-evolution codes (E0308 confirmed 2/2,
+  + E0512 21 + E0793 6 ≈ 88)** recover on an earlier milestone; the
+  **coherence/ambiguity codes (E0119 confirmed 0/5, E0034 0/2, + E0283
+  ≈ 114)** do NOT — they are stable bitrot. So the recoverable pool is
+  the ~88 stdlib-evolution candidates (only E0308's 61 confirmed; E0512/
+  E0793 pending), not the full 250.
+- **Provably corpus property — ~600+ candidates** (TEST_FAILURE 244 +
   DEPENDENCY_RESOLUTION ~92 + RUNTIME_CRASH native-lib 69 + NIGHTLY
-  never-stabilized 62 + BITROT project-source 75): no pipeline change
-  recovers these. Author-environment tests, deleted git refs, missing
-  system libraries, never-stabilized features, and genuine code drift.
+  never-stabilized 62 + BITROT project-source 75 + BITROT coherence/
+  ambiguity ~114): no pipeline change recovers these. Author-environment
+  tests, deleted git refs, missing system libraries, never-stabilized
+  features, stable coherence errors, and genuine code drift.
 
-Translating to a ceiling: **~100 certain + a plausible ~50–100 probable**
-recoverable from these five classes would lift DS1 reproducibility from
-54.3 % toward the **low-to-mid 60s %**, with the rest honest corpus
-attrition. The defense narrative: we can name, quantify, and partially
-close the gap, and what remains is decay — not pipeline weakness. **The
-single most valuable next experiment is the prior-milestone retry**,
-because it targets the largest probable pool (250) and would convert the
-biggest PROBABLE into a CONFIRMED number.
+Translating to a ceiling: **~100 certain (nightly + build-tools) + ~88
+probable (E0308-family, ~61 confirmed)** recoverable from these five
+classes would lift DS1 reproducibility from 54.3 % toward roughly
+**~60 %**, with the rest honest corpus attrition. The defense narrative:
+we can name, quantify, and *empirically test* the gap — and what remains
+is decay, not pipeline weakness. **The biggest single confirmed win is
+the E0308-family prior-milestone retry**, which the local run already
+demonstrated (2/2) and which a full amd64 run on crack would scale to the
+~88-candidate cohort.
 
 ---
 
@@ -99,47 +104,75 @@ This **corrects an earlier draft** that guessed ~33 % fixable / ~31 %
 "dependency-API rot". Reading the logs shows the opposite skew: the
 dominant codes fail inside *pinned old deps*, not the project.
 
-### Per-code split (transitive-registry / project-source)
+### Per-code split (transitive-registry / project-source) + retry verdict
 
-| Code | Total | Transitive (fixable sig.) | Project src | Nature |
+| Code | Total | Transitive sig. | Project src | Prior-milestone retry verdict |
 | --- | ---: | ---: | ---: | --- |
-| E0308 mismatched types | 63 | **61** | 2 | e.g. `lexical-core 0.7.4` `Limb::BITS` usize-vs-u32 (stdlib `BITS` const changed) |
-| E0034 multiple applicable items | 41 | **39** | 2 | inherent-vs-trait method ambiguity tightened |
-| E0283 inference ambiguity | 40 | ~31 | ~9 | inference got stricter |
-| E0119 conflicting impls | 33 | mixed | mixed | warning→hard-error in 1.49 |
-| E0512 transmute size | 21 | **21** | 0 | layout/size assumptions |
-| E0793 misaligned reference | 6 | **6** | 0 | a *recent* lint; era rustc had no such check |
-| E0601 missing `main` | 12 | 0 | **12** | project-source — likely genuine |
+| E0308 mismatched types | 63 | **61** | 2 | **RECOVERS ✓ (verified 2/2)** — `u32::BITS` (stabilized 1.53) created the ambiguity; pre-1.53 milestone compiles |
+| E0512 transmute size | 21 | **21** | 0 | likely recovers (same stdlib-evolution mechanism; not yet rebuilt) |
+| E0793 misaligned reference | 6 | **6** | 0 | likely recovers (a *recent* lint absent from era rustc) |
+| E0119 conflicting impls | 33 | mixed | mixed | **DOES NOT recover (verified 0/5)** — `(dyn Send+Sync)` coherence was a hard error long before 1.49 |
+| E0034 multiple applicable items | 41 | **39** | 2 | **DOES NOT recover (verified 0/2)** — inherent-vs-trait ambiguity stable across milestones |
+| E0283 inference ambiguity | 40 | ~31 | ~9 | unknown — not rebuilt; inference-stability uncertain |
+| E0601 missing `main` | 12 | 0 | **12** | project-source — likely genuine, not retry-fixable |
 | E0583 missing mod file | 10 | 0 | **10** | project-source — likely genuine |
 | E0433/E0432 unresolved import/path | 29 | 3 | **26** | mostly project-source |
 | E0277 trait bound | 9 | 4 | 5 | mixed |
 | (+ RUNTIME_MEM_UNINIT 12, uncoded 57) | | | | excluded from coded analysis |
 
-The classic anti-bitrot example E0119 (warning until 1.49, hard error
-after) is real but small (33); the *bulk* of the recoverable signature is
-E0308/E0034/E0512 firing in pinned transitive deps.
+**Local verification run (2026-05-30, 10 candidates, arm64).** We
+actually rebuilt a sample on the prior milestone — and it overturned the
+"transitive signature ⇒ recoverable" shortcut. The retry verdict is
+**code-dependent, not signature-wide**:
+
+- **E0308 RECOVERED 2/2** (`conectado/taping-memory-blog#42`,
+  `tommilligan/decadog#133`): both compiled `ok` on 1.49. The mechanism
+  is specific and predictive — a *newer stdlib item* (`u32::BITS`, 1.53)
+  introduced an ambiguity in a pinned old dep; an earlier milestone that
+  lacks that item resolves cleanly.
+- **E0119 did NOT recover 0/5** (`andreasots/eris` ×4,
+  `Technosorcery/sd2snes…#388`): still `E0119` on both 1.39 and 1.49.
+  These are `(dyn Send + Sync)` coherence conflicts — a hard error well
+  before 1.49, not a 1.49 lint-tightening. The doc's earlier "warning
+  until 1.49" framing was **wrong** for this cluster.
+- **E0034 did NOT recover 0/2** (`Technolution/rustig`): method-resolution
+  ambiguity, stable across milestones.
+
+So the recoverable core is the **stdlib-evolution codes (E0308 61 +
+E0512 21 + E0793 6 ≈ 88)**, NOT the coherence/ambiguity codes
+(E0119 + E0034 + E0283 ≈ 114), which the rebuild shows are stable bitrot
+no older milestone fixes. This is the single biggest correction the
+verification produced. (Caveat: run on arm64; `CLAUDE.md` notes
+cross-arch uses append mode — but the *error codes matched crack's
+amd64 record exactly*, so arch did not mask the result. E0512/E0793
+"likely recovers" remains UNVERIFIED until rebuilt.)
 
 ### Confidence and experiment
 
-- **CONFIDENCE: PROBABLE, NOT CONFIRMED.** "Error fires in a transitive
-  dep" is a strong *signal* of toolchain bitrot, not proof — only the
-  actual rebuild confirms it. **No candidate was rebuilt on an older
-  milestone yet.** This must be validated the way OpenSSL (48/64) and
-  native-dep (7) were: carve the cohort, rerun on the commit-era
-  milestone with a separate `run_id`, re-classify survivors.
-- **Worked example (verified from log):**
-  `conectado/taping-memory-blog#42` — fails E0308 in
+- **CONFIDENCE: PARTIALLY CONFIRMED.** The 10-candidate local rebuild
+  (above) confirms E0308 recovers (2/2) and E0119/E0034 do not (0/7).
+  The "transitive signature ⇒ recoverable" heuristic is therefore **not
+  sufficient on its own** — it must be qualified by error-code mechanism.
+  E0512/E0793 ("likely recovers") and E0283 ("unknown") are still
+  un-rebuilt. A full confirmation run should carve the E0308/E0512/E0793
+  cohort, rerun on the commit-era milestone with a separate `run_id` on
+  **amd64 (crack)**, and re-classify survivors — the same bar OpenSSL
+  (48/64) and native-dep (7) met.
+- **Worked example (now rebuilt, not just predicted):**
+  `conectado/taping-memory-blog#42` — failed E0308 in
   `lexical-core 0.7.4/src/atof/algorithm/bhcomp.rs:62`
-  (`bits / Limb::BITS`, expected `usize` found `u32`). The project
-  itself is fine; the locked transitive `lexical-core 0.7.4` only breaks
-  on the newer rustc. Routed to `1.56-buster`; predicted to compile on
-  its commit-era milestone.
-- **Experiment:** retry the **250 transitive-signature candidates** on
-  the commit-era milestone (the `latest_milestone_before(commit_date)`
-  one — typically 1–2 milestones below their current fat image, e.g.
-  the `1.56-buster` E0308/E0713/E0793 cluster → retry on 1.49 or 1.39).
-  Predicted yield is genuinely uncertain pre-rebuild; a conservative
-  20–40 % of 250 ≈ **+50–100**, but treat as hypothesis until the run.
+  (`bits / Limb::BITS`, expected `usize` found `u32`) on `1.56-buster`.
+  The project itself is fine; the locked transitive `lexical-core 0.7.4`
+  broke only because rustc 1.53+ added `u32::BITS`, creating the
+  ambiguity. **Re-run on `1.49-buster` (pre-1.53): compiles `ok`.**
+  Confirmed, not predicted.
+- **Experiment (refined by the local run):** retry the **~88
+  stdlib-evolution candidates** (E0308 61 + E0512 21 + E0793 6) on the
+  commit-era milestone — NOT the full 250, since the rebuild showed the
+  coherence/ambiguity codes (E0119/E0034/E0283) don't recover. E0308 is
+  already confirmed (2/2); E0512/E0793 are the remaining un-rebuilt
+  ~27. Run on amd64 (crack) for canonical entries. Realistic yield: most
+  of the ~88, i.e. **+40–80**, with E0308's ~61 the high-confidence core.
 
 ## TEST_FAILURE (244) — CONFIRMED ~0 % fixable (corpus property)
 
@@ -246,16 +279,19 @@ Cargo's resolver failed to produce a build plan.
 
 ## What this means for the thesis / defense
 
-1. **The reproducibility ceiling is bounded and explainable.** ~500+ of
+1. **The reproducibility ceiling is bounded and explainable.** ~600+ of
    the 1,249 failures are provably corpus properties (author-env tests,
    deleted git refs, missing system libs, never-stabilized features,
-   project-source code drift). No pipeline closes those.
-2. **The closable gap is real, named, and dominated by one lever:** a
+   stable coherence/ambiguity bitrot, project-source code drift). No
+   pipeline closes those.
+2. **The closable gap is real, named, and partly verified by rebuild:** a
    nightly variant (~77) and build-tool augmentation (~24) are certain;
-   the big *probable* pool is the **250 toolchain-bitrot-signature
-   candidates** (error fires in a locked transitive dep) addressed by
-   prior-milestone retry, plausibly +50–100. Low-to-mid 60s % is a
-   defensible practical ceiling for this corpus and contract.
+   the BITROT lever is **narrower than the transitive-signature count
+   suggested** — a local rebuild confirmed only the stdlib-evolution
+   codes recover (E0308 2/2), while coherence/ambiguity codes do not
+   (E0119 0/5, E0034 0/2). Recoverable BITROT pool ≈ 88 (E0308's ~61
+   confirmed-mechanism), not 250. A ~60 % practical ceiling for this
+   corpus and contract.
 3. **Two tempting "the pipeline is weak" hypotheses are falsified:**
    era-pinned crates.io index (<2 % yield) and later-stable rebuild
    (introduces orthogonal failures). Naming what does *not* help is as
@@ -266,10 +302,38 @@ Cargo's resolver failed to produce a build plan.
    re-classify survivors. The PROBABLE labels become CONFIRMED only after
    that.
 
+## Appendix — the local verification run (2026-05-30)
+
+Prior-milestone retry, 10 RUSTC_BITROT candidates, on this arm64 laptop
+via `durp reproduce --force-fat-image <older> --skip-preflight`. Each was
+failing on its current fat image; we forced the milestone below and
+re-ran the pre/post `cargo test`.
+
+| Candidate | Code | Current → retry image | Result |
+| --- | --- | --- | --- |
+| conectado/taping-memory-blog#42 | E0308 | 1.56 → 1.49-buster | **ok ✓** |
+| tommilligan/decadog#133 | E0308 | 1.56 → 1.49-buster | **ok ✓** |
+| andreasots/eris#874 | E0119 | 1.56 → 1.49-buster | not_reproducible (still E0119) |
+| andreasots/eris#785 | E0119 | 1.56 → 1.49-buster | not_reproducible (still E0119) |
+| andreasots/eris#631 | E0119 | 1.56 → 1.49-buster | not_reproducible (still E0119) |
+| andreasots/eris#571 | E0119 | 1.49 → 1.39-buster | not_reproducible (dep-resolution on 1.39) |
+| andreasots/eris#591 | E0119 | 1.49 → 1.39-buster | not_reproducible (still E0119) |
+| Technosorcery/sd2snes-…#388 | E0119 | 1.49 → 1.39-buster | not_reproducible (still E0119) |
+| Technolution/rustig#123 | E0034 | 1.56 → 1.49-buster | not_reproducible (still E0034) |
+| Technolution/rustig#103 | E0034 | 1.56 → 1.49-buster | not_reproducible (still E0034) |
+
+**Net: 2/10 recovered — both E0308; 0/7 of the E0119/E0034 codes.** This
+is the evidence behind the "code-dependent, not signature-wide"
+conclusion. Caveat: arm64 (crack is amd64); but the failing error codes
+matched crack's amd64 record exactly, so the arch did not change the
+verdict. E0512/E0793 were not in this sample and remain un-rebuilt.
+
 ## Provenance
 
 All counts from `pipeline.sqlite` (`run_id='ds1-full-crack-r2'`,
 `drive_state` + `drive_state_classifications`) and sampled pre-build logs
 under `data/cargo-logs/ds1-full-crack-r2/`. The five large classes were
 analysed by independent passes; the smaller classes reference the
-existing case studies and run findings in this directory.
+existing case studies and run findings in this directory. The appendix
+verification used `durp reproduce` (run_ids `pmretry-139-local`,
+`pmretry-149-local`, `pmretry-e0308-local`).
