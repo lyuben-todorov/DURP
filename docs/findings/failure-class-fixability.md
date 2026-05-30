@@ -356,6 +356,61 @@ pipeline-fixable margin.
    re-classify survivors. The PROBABLE labels become CONFIRMED only after
    that.
 
+## Follow-up recovery batches (runnable)
+
+Concrete batches to run on **crack (amd64)** to produce committable
+entries, ordered by yield-per-effort. Each is a forced-image or
+forced-toolchain sub-cohort with its own `run_id` (never folded into the
+parent headline), exactly like the OpenSSL and native-dep case studies.
+The carve query template is:
+
+```sql
+SELECT d.candidate_key
+FROM drive_state d JOIN drive_state_classifications c
+  ON c.run_id=d.run_id AND c.candidate_key=d.candidate_key
+WHERE d.run_id='ds1-full-crack-r2' AND <batch predicate>;
+```
+
+then `durp dev rebatchi`-style carve to a JSONL and
+`durp reproduce --candidates <cohort> --force-fat-image <img>
+--run-id <id> --skip-preflight`.
+
+| # | Batch | Cohort (carve predicate) | N | Lever / image | Builds needed | Confidence | Est. yield |
+| --- | --- | --- | ---: | --- | --- | --- | ---: |
+| **1** | **nasm build-tools** | RUNTIME_CRASH whose pre-log names nasm/meson/ninja/sass | **24** | augmented fat image (`+nasm meson ninja sass`) per debian era | 1 Dockerfile edit + rebuild affected tags | **CONFIRMED** (2/2 local) | ~20–24 |
+| **2** | **E0308 prior-milestone** | `category=RUSTC_BITROT AND subcategory='E0308'` | **63** | retry on milestone below: the 60 on `1.56-buster` → `1.49-buster`; 3 on `1.39-stretch` → `1.35-stretch` | none (images exist) | **CONFIRMED** (2/2 local) | ~50–60 |
+| **3** | **REPO_GONE depth-shim** | `category=REPO_GONE` (27/28 manifest-deep) | **28** | raise the Cargo.toml discovery cap from depth 2 → 5 (+ clone-retry) | code change, no image | HIGH (audited) | ~27 |
+| **4** | **TIMEOUT reroute** | `category=TIMEOUT` | **69** | re-run at `--parallel 5 --timeout 3600` (no image change) | none | MEDIUM (artifact) | ~30–40 |
+| **5** | **era-pinned nightly** | `subcategory IN (pear_codegen,rocket_codegen,rocket,rocket_contrib_codegen)` | **109** | build a **2020-era pinned nightly** fat image (NOT current nightly — that fails, see recovery-experiments) | new nightly Dockerfile + pinned-nightly base | LOW–MED (current nightly 0/3; era nightly untested) | ≤109, unquantified |
+| **6** | **MSRV_TOO_LOW route-up** | `category=MSRV_TOO_LOW` (all MSRV 1.56, dep needs edition-2021) | **9** | route **up** to `1.65`/`1.75-buster` (mirror of era-floor) | build 1.65-buster | LOW (untested hypothesis) | ~5–9 |
+| **7** | **E0512/E0793 deep retry** | `subcategory IN ('E0512','E0793')`, all on `1.56-buster` | **27** | retry *much* older (1.39/1.35), not just 1.49 (1.49 already failed, 0/2) | none (images exist) | LOW (1.49 failed; older untested) | uncertain |
+
+**Notes per batch:**
+
+- **#1 + #2 are the immediate wins** — both confirmed by the local
+  rebuild, both need no new mechanism (E0512 ≠ E0308: only run #2 on the
+  true E0308 cohort). Together ~70–84 candidates, lifting DS1 toward
+  ~57–60 %. Run these first.
+- **#3 (REPO_GONE) is a code change, not a run** — raise the manifest
+  discovery depth and add a transient-clone retry; re-drive the 28.
+  Highest yield-per-line-of-code.
+- **#4 (TIMEOUT) is free** — no image work, just driver flags; but the
+  yield is "candidates that were merely slow," so verify each flips to a
+  real status rather than re-timing-out.
+- **#5 (nightly) is the big-but-hard one** — the recovery experiment
+  showed a *current* nightly clears the build.rs abort then dies on
+  modern-rustc coherence (E0119 in `traitobject`). It needs a
+  **reproducibly-pinned ~2020 nightly** base, which the current Dockerfile
+  can't express (`FROM rust:${VER}-${DEB}` is stable-only). Scoping that
+  is its own task; until then treat the 109 as conditional.
+- **#6 + #7 are cheap probes** — small N, test the "route-up" and
+  "retry-much-older" hypotheses. Low confidence, low cost.
+
+Do NOT run these concurrently with the live-mine drive or each other on
+crack (shared Docker daemon + `pipeline.sqlite` — the parallel-write
+contention that inflated TIMEOUT at `--parallel 8`). One batch at a time,
+`--parallel 5`.
+
 ## Appendix — the local verification run (2026-05-30)
 
 Prior-milestone retry, 10 RUSTC_BITROT candidates, on this arm64 laptop
