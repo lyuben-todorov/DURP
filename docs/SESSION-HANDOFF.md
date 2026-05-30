@@ -101,10 +101,6 @@ separate agent.
 - **Run A** (multi-attempt `--attempts 3` headline run on DS1) — deferred
   by user; user will ask supervisors whether a defensible p-value sample
   multi-run is an acceptable alternative to the full 12-day run.
-- **Two untracked scratch scripts on crack** (`scripts/build_openssl_cohort.py`,
-  `scripts/build_rerun_cohort.py`) — real artifacts, untracked. Decide:
-  commit as provenance or gitignore. (`build_native_dep_cohort.py` is
-  committed; these two predate it.)
 - **Grafana `dataset-results.json`** still filters on the old
   `ds1-full-crack-r2-openssl-stretch` run_id, which was merged into
   `ds1-full-crack-r2.1` — that panel will read empty until repointed.
@@ -112,7 +108,8 @@ separate agent.
   open questions in `docs/findings/ds1-full-r2-findings.md` §Open questions.
 
 Resolved since first draft: `register_fingerprint` deleted; OpenSSL +
-native-dep case studies written (`docs/findings/*-case-study.md`);
+native-dep case studies written (`docs/findings/*-case-study.md`); the
+two cohort-builder scratch scripts committed to `scripts/`;
 origin repointed to `DURP`.
 
 ## Presentation
